@@ -1,17 +1,21 @@
-# vocalearn
+# Vocalearn
 
-A new Flutter project.
+**Adaptive Language Learning** — aplikasi belajar bahasa asing adaptif.
 
-## Getting Started
+Repo ini berisi dua bagian:
 
-This project is a starting point for a Flutter application.
+- **`vocalearn-backend/`** — Backend API FastAPI + SQLite + integrasi AI Gemini. Termasuk autentikasi JWT, RBAC, workflow review modul, dan mesin rekomendasi adaptif. Lihat [vocalearn-backend/README.md](vocalearn-backend/README.md) untuk setup, menjalankan server, dan test.
+- **`lib/`** — Frontend Flutter (Super Admin UI). Di-wire melalui `lib/main.dart` dengan `AdminHomeScreen`.
 
-A few resources to get you started if this is your first Flutter project:
+## Mulai cepat (backend)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd vocalearn-backend
+python -m venv venv
+venv\Scripts\activate        # Windows
+pip install -r requirements.txt
+cp .env.example .env         # lalu isi GEMINI_API_KEY dll.
+python -m app.seed           # data demo
+uvicorn app.main:app --reload --port 8000
+pytest tests -v              # jalankan test
+```
