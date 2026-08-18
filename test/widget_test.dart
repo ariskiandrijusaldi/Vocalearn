@@ -1,25 +1,30 @@
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:vocalearn/data/repositories/admin_repository_impl.dart';
-import 'package:vocalearn/data/repositories/recommendation_repository_impl.dart';
-import 'package:vocalearn/features/admin/presentation/screens/admin_home_screen.dart';
+import 'package:vocalearn/main.dart';
 
 void main() {
-  testWidgets('Admin home renders tabs and students', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AdminHomeScreen(
-          adminRepository: AdminRepositoryImpl(),
-          recommendationRepository: RecommendationRepositoryImpl(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
 
-    expect(find.text('VocaLearn Super Admin'), findsOneWidget);
-    expect(find.text('Mahasiswa'), findsWidgets);
-    expect(find.text('Dosen'), findsWidgets);
-    expect(find.text('Rina Kartika'), findsOneWidget);
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
+
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
+
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
   });
 }
