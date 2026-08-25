@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+wheels/
+develop-eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Database lokal
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing / static analysis
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editor / OS
+.DS_Store
+
+# Mengandung API key yang di-hardcode — jangan pernah di-commit
+list_models.py
