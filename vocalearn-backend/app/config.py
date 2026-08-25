@@ -15,7 +15,9 @@ class Settings:
     )
 
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
-    GEMINI_MODEL: str = "models/gemini-flash-latest"
+    # Bisa dioverride di .env, mis. models/gemini-3.6-flash atau
+    # models/gemini-3.6-flash-lite jika model utama sedang overload.
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "models/gemini-3.6-flash")
 
 
 settings = Settings()

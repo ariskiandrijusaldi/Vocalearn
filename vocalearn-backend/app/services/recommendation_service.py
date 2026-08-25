@@ -12,7 +12,7 @@ from app.ai import risk as risk_service
 from app.ai.advice import generate_ai_suggestion
 from app.ai.scheduler import compute_module_mastery, recommend_next_module
 from app.models import Module, User
-from app.schemas import CompetencyOut, RecommendationOut, RiskOut
+from app.schemas import CompetencyOut, ModuleOut, RecommendationOut, RiskOut
 
 
 def get_student_recommendation(db: Session, student_id: int) -> RecommendationOut:
@@ -51,12 +51,16 @@ def get_student_recommendation(db: Session, student_id: int) -> RecommendationOu
         weakest_module_title=competencies[0].module_title if competencies else None,
     )
 
+    next_module_out = None
+    if next_module is not None:
+        next_module_out = ModuleOut.model_validate(next_module)
+
     return RecommendationOut(
         student_id=student_id,
         generated_at=datetime.now(),
         risk=RiskOut(**risk),
         competencies=competencies,
-        next_module=next_module,
+        next_module=next_module_out,
         reason=reason,
         ai_suggestion=ai_suggestion,
     )

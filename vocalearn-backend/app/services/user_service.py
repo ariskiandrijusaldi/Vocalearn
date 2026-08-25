@@ -1,3 +1,5 @@
+from sqlalchemy import text
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,7 @@ def create_user(
     nim: str | None = None,
     nip: str | None = None,
     prodi: str | None = None,
+    kelas_id: int | None = None,
 ) -> User:
     if role not in UserRole.ALL:
         raise HTTPException(status_code=400, detail="Role tidak dikenal")
@@ -37,6 +40,7 @@ def create_user(
         nim=nim,
         nip=nip,
         prodi=prodi,
+        kelas_id=kelas_id,
     )
     db.add(user)
     db.commit()
@@ -58,7 +62,17 @@ def update_user(db: Session, user_id: int, req: UserUpdate) -> User:
 
 
 def soft_delete_user(db: Session, user_id: int) -> None:
-    """Soft delete: nonaktifkan akun agar riwayat interaksi tetap utuh."""
+    """Hard delete: hapus user beserta semua data terkait."""
     user = get_user_or_404(db, user_id)
-    user.is_active = False
+    uid = user.id
+
+    db.execute(text("DELETE FROM chat_messages WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM diagnostic_results WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM quiz_attempts WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM simplified_materials WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM interactions WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM enrollments WHERE student_id = :uid"), {"uid": uid})
+    db.execute(text("UPDATE modules SET created_by = NULL WHERE created_by = :uid"), {"uid": uid})
+    db.execute(text("UPDATE modules SET reviewed_by = NULL WHERE reviewed_by = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": uid})
     db.commit()

@@ -14,29 +14,52 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.ai.competency import weighted_mastery
-from app.models import Enrollment, Interaction, Module, ModuleStatus
+from app.models import Enrollment, Interaction, Module, ModuleStatus, QuizResult
 
 MASTERY_THRESHOLD = 0.8
 AVOID_RECENT_HOURS = 6
 
 
-def compute_module_mastery(db: Session, student_id: int) -> dict[int, dict]:
-    """mastery per modul (dari modul yang pernah dikerjakan siswa)."""
+def _activity_entries(db: Session, student_id: int) -> dict[int, list[tuple[float, datetime]]]:
+    """Kumpulkan aktivitas belajar per modul dari dua sumber:
+    Interaction (alur lama) dan QuizResult (kuis AI). Return {module_id: [(skor, waktu)]}."""
+    entries: dict[int, list[tuple[float, datetime]]] = {}
+
     interactions = (
         db.query(Interaction)
         .filter(Interaction.student_id == student_id)
         .order_by(Interaction.created_at.desc())
         .all()
     )
-    by_module: dict[int, list[Interaction]] = {}
     for it in interactions:
-        by_module.setdefault(it.module_id, []).append(it)
+        entries.setdefault(it.module_id, []).append(
+            (float(it.score), it.created_at)
+        )
+
+    quiz_results = (
+        db.query(QuizResult)
+        .filter(QuizResult.student_id == student_id)
+        .order_by(QuizResult.created_at.desc())
+        .all()
+    )
+    for qr in quiz_results:
+        entries.setdefault(qr.material_id, []).append(
+            (float(qr.skor), qr.created_at)
+        )
+
+    return entries
+
+
+def compute_module_mastery(db: Session, student_id: int) -> dict[int, dict]:
+    """mastery per modul (dari modul yang pernah dikerjakan siswa)."""
+    entries = _activity_entries(db, student_id)
 
     result: dict[int, dict] = {}
-    for module_id, items in by_module.items():
+    for module_id, items in entries.items():
+        items.sort(key=lambda t: t[1], reverse=True)
         mastery = weighted_mastery(
-            [i.score for i in items],
-            [i.created_at for i in items],
+            [score for score, _ in items],
+            [ts for _, ts in items],
         )
         result[module_id] = {"mastery": mastery, "attempts": len(items)}
     return result
@@ -66,6 +89,12 @@ def recommend_next_module(db: Session, student_id: int) -> tuple[Module | None, 
         for i in db.query(Interaction).filter(
             Interaction.student_id == student_id,
             Interaction.created_at >= recent_cutoff,
+        ).all()
+    } | {
+        q.material_id
+        for q in db.query(QuizResult).filter(
+            QuizResult.student_id == student_id,
+            QuizResult.created_at >= recent_cutoff,
         ).all()
     }
 

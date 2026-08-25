@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/providers/auth_provider.dart';
 import '../../data/providers/student_profile_provider.dart';
 
 /// ==========================================================
 /// TRACK MAHASISWA — Langkah 3: Form Profil Mahasiswa
 /// ==========================================================
-/// Terhubung ke to-do list §3 & Mini-PRD Fitur 1 (bagian profil).
-/// Acceptance criteria: field program studi & mata kuliah praktik yang
-/// diambil (dropdown dari data dummy), disimpan ke state lokal dulu.
-///
-/// TODO selanjutnya (Alya):
-///   [ ] Setelah tombol "Lanjut ke Diagnostik" ditekan, arahkan ke
-///       DiagnosticScreen (langkah 4) begitu screen itu dibuat — ganti
-///       context.go('/mahasiswa') di bawah.
-///   [ ] Setelah backend siap, kirim data profil ke API juga (lihat
-///       TODO di student_profile_provider.dart)
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -24,8 +15,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  // Data dummy — nanti bisa ditarik dari master data yang dikelola
-  // Super Admin (§9), untuk sekarang cukup hardcode untuk demo.
   static const _daftarProdi = [
     'Manajemen Informatika',
     'Teknik Komputer',
@@ -43,6 +32,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isFormValid = _selectedProdi != null && _selectedMataKuliah != null;
+    final user = ref.watch(authProvider).user;
+    final kelasName = user?.kelasName;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Lengkapi Profil')),
@@ -62,6 +53,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   'Informasi ini membantu VocaLearn menyesuaikan modul praktik yang tepat.',
                 ),
                 const SizedBox(height: 24),
+
+                // --- Info Kelas ---
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: kelasName != null
+                        ? const Color(0xFFE8F5E9)
+                        : const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.class_,
+                        color: kelasName != null
+                            ? const Color(0xFF2E7D32)
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Kelas',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              kelasName ?? 'Belum ada kelas',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: kelasName != null
+                                    ? const Color(0xFF1B5E20)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
 
                 DropdownButtonFormField<String>(
                   initialValue: _selectedProdi,

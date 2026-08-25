@@ -75,7 +75,7 @@ def generate_ai_suggestion(
                 ),
                 config={"system_instruction": _ROLE_TUTOR},
             )
-            text = response.text.strip()
+            text = (response.text or "").strip()
             if text:
                 if student_id is not None:
                     _cache[student_id] = (time.time(), text)

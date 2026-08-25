@@ -13,6 +13,8 @@ class ModuleCreate(BaseModel):
     content: Optional[str] = None
     difficulty: int = 1
     order_index: int = 0
+    youtube_url: Optional[str] = None
+    kelas_id: Optional[int] = None
 
 
 class ModuleUpdate(BaseModel):
@@ -21,6 +23,8 @@ class ModuleUpdate(BaseModel):
     content: Optional[str] = None
     difficulty: Optional[int] = None
     order_index: Optional[int] = None
+    youtube_url: Optional[str] = None
+    kelas_id: Optional[int] = None
 
 
 class ModuleReview(BaseModel):
@@ -36,8 +40,14 @@ class ModuleOut(ORMBase):
     difficulty: int
     order_index: int
     status: str
-    created_by: int
+    created_by: Optional[int] = None
+    creator_name: Optional[str] = None
     reviewed_by: Optional[int] = None
     review_note: Optional[str] = None
+    pdf_path: Optional[str] = None
+    youtube_url: Optional[str] = None
+    kelas_id: Optional[int] = None
+    kelas_name: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None

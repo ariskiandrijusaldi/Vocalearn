@@ -14,10 +14,17 @@ from app.models import (
     Course,
     Enrollment,
     Interaction,
+    Kelas,
     Module,
     ModuleStatus,
     User,
 )
+from app.models.answer_explanation import AnswerExplanation
+from app.models.chat_message import ChatMessage
+from app.models.diagnostic_result import DiagnosticResult
+from app.models.quiz_attempt import QuizAttempt
+from app.models.quiz_question import QuizQuestion
+from app.models.simplified_material import SimplifiedMaterial
 from app.security import hash_password
 
 MASTER_PASSWORD = "admin123"
@@ -75,25 +82,27 @@ COURSES = [
     },
 ]
 
+# Format: (code, title, difficulty, status, order, kelas_name_or_None)
+# kelas_name_or_None: modul ini hanya tampil untuk kelas tersebut; None = umum (semua kelas).
 MODULES = [
-    # Course 1: Bahasa Inggris Dasar
-    ("BING101", "Greetings & Introductions", 1, ModuleStatus.PUBLISHED, 0),
-    ("BING101", "Present Simple Tense", 2, ModuleStatus.PUBLISHED, 1),
-    ("BING101", "Vocabulary: Daily Activities", 3, ModuleStatus.REVIEW, 2),
-    ("BING101", "Listening: Short Conversations", 4, ModuleStatus.DRAFT, 3),
-    # Course 2: Bahasa Jepang Percakapan
-    ("BJEP102", "Hiragana Dasar", 2, ModuleStatus.PUBLISHED, 0),
-    ("BJEP102", "Salam & Perkenalan", 3, ModuleStatus.PUBLISHED, 1),
-    ("BJEP102", "Katakana: Kata Serapan", 4, ModuleStatus.REVIEW, 2),
-    # Course 3: Bahasa Mandarin Bisnis
-    ("BMAN103", "Pinyin & Nada", 3, ModuleStatus.PUBLISHED, 0),
-    ("BMAN103", "Angka & Harga", 4, ModuleStatus.DRAFT, 1),
-    # Course 4: Public Speaking
-    ("PKOR104", "Struktur Pidato", 2, ModuleStatus.PUBLISHED, 0),
-    ("PKOR104", "Teknik Vokal & Gestur", 3, ModuleStatus.REVIEW, 1),
-    # Course 5: Bahasa Korea Pariwisata
-    ("BKOR105", "Hangul Dasar", 4, ModuleStatus.PUBLISHED, 0),
-    ("BKOR105", "Frasa Check-in Bandara", 5, ModuleStatus.PUBLISHED, 1),
+    # Course 1: Bahasa Inggris Dasar — khusus TI-2A
+    ("BING101", "Greetings & Introductions", 1, ModuleStatus.PUBLISHED, 0, "TI-2A"),
+    ("BING101", "Present Simple Tense", 2, ModuleStatus.PUBLISHED, 1, "TI-2A"),
+    ("BING101", "Vocabulary: Daily Activities", 3, ModuleStatus.REVIEW, 2, "TI-2A"),
+    ("BING101", "Listening: Short Conversations", 4, ModuleStatus.DRAFT, 3, "TI-2A"),
+    # Course 2: Bahasa Jepang Percakapan — umum (semua kelas)
+    ("BJEP102", "Hiragana Dasar", 2, ModuleStatus.PUBLISHED, 0, None),
+    ("BJEP102", "Salam & Perkenalan", 3, ModuleStatus.PUBLISHED, 1, None),
+    ("BJEP102", "Katakana: Kata Serapan", 4, ModuleStatus.REVIEW, 2, None),
+    # Course 3: Bahasa Mandarin Bisnis — khusus TI-2B
+    ("BMAN103", "Pinyin & Nada", 3, ModuleStatus.PUBLISHED, 0, "TI-2B"),
+    ("BMAN103", "Angka & Harga", 4, ModuleStatus.DRAFT, 1, "TI-2B"),
+    # Course 4: Public Speaking — khusus TI-2A
+    ("PKOR104", "Struktur Pidato", 2, ModuleStatus.PUBLISHED, 0, "TI-2A"),
+    ("PKOR104", "Teknik Vokal & Gestur", 3, ModuleStatus.REVIEW, 1, "TI-2A"),
+    # Course 5: Bahasa Korea Pariwisata — khusus TI-2B
+    ("BKOR105", "Hangul Dasar", 4, ModuleStatus.PUBLISHED, 0, "TI-2B"),
+    ("BKOR105", "Frasa Check-in Bandara", 5, ModuleStatus.PUBLISHED, 1, "TI-2B"),
 ]
 
 # format: (nim, list of (module_title, score, correct, total))
@@ -176,17 +185,37 @@ def seed():
                 db.flush()
             dosen_ids[key] = d.id
 
-        # 3) Mahasiswa
+        # 3) Kelas
+        kelas_map = {}
+        for name, dosen_key, desc in (
+            ("TI-2A", "dosen1", "Kelas Teknik Informatika 2A - Dikelola Dr. Sari"),
+            ("TI-2B", "dosen2", "Kelas Teknik Informatika 2B - Dikelola Andi Pratama"),
+        ):
+            k = db.query(Kelas).filter(Kelas.name == name).first()
+            if not k:
+                k = Kelas(
+                    name=name,
+                    dosen_id=dosen_ids[dosen_key],
+                    description=desc,
+                )
+                db.add(k)
+                db.flush()
+            kelas_map[name] = k
+
+        # 4) Mahasiswa
         mahasiswa = [
-            ("240001", "Rina Kartika", "S1 Bahasa Inggris"),
-            ("240002", "Dimas Anggara", "S1 Pariwisata"),
-            ("240003", "Sinta Permata", "S1 Manajemen Bisnis"),
-            ("240004", "Budi Santoso", "S1 Hospitality"),
-            ("240005", "Alya Rahma", "S1 Bahasa Inggris"),
+            ("240001", "Rina Kartika", "S1 Bahasa Inggris", "TI-2A"),
+            ("240002", "Dimas Anggara", "S1 Pariwisata", "TI-2A"),
+            ("240003", "Sinta Permata", "S1 Manajemen Bisnis", "TI-2B"),
+            ("240004", "Budi Santoso", "S1 Hospitality", "TI-2B"),
+            ("240005", "Alya Rahma", "S1 Bahasa Inggris", "TI-2A"),
         ]
         students = {}
-        for i, (nim, name, prodi) in enumerate(mahasiswa, start=1):
+        for i, (nim, name, prodi, kelas_name) in enumerate(mahasiswa, start=1):
             s = _get_user(db, nim, name, prodi, i)
+            if s.kelas_id is None and kelas_name in kelas_map:
+                s.kelas_id = kelas_map[kelas_name].id
+                db.flush()
             students[nim] = s
 
         # 4) Mata kuliah
@@ -201,7 +230,7 @@ def seed():
 
         # 5) Modul
         module_by_title = {}
-        for code, title, difficulty, status, order in MODULES:
+        for code, title, difficulty, status, order, kelas_name in MODULES:
             course = course_map[code]
             mod = (
                 db.query(Module)
@@ -209,6 +238,7 @@ def seed():
                 .first()
             )
             if not mod:
+                kelas_id = kelas_map[kelas_name].id if kelas_name and kelas_name in kelas_map else None
                 mod = Module(
                     course_id=course.id,
                     title=title,
@@ -217,6 +247,7 @@ def seed():
                     difficulty=difficulty,
                     order_index=order,
                     status=status,
+                    kelas_id=kelas_id,
                     created_by=dosen_ids["dosen1"] if code in ("BING101", "PKOR104") else dosen_ids["dosen2"],
                 )
                 db.add(mod)
@@ -274,6 +305,169 @@ def seed():
                             duration_seconds=5 * 60,
                         )
                     )
+
+        # 8) Sample quiz questions (Bahasa Inggris Dasar — Greetings)
+        greetings_mod = module_by_title.get("Greetings & Introductions")
+        if greetings_mod:
+            quiz_samples = [
+                {
+                    "pertanyaan": "Apa arti 'How are you?' dalam Bahasa Indonesia?",
+                    "opsi_a": "Siapa namamu?",
+                    "opsi_b": "Apa kabarmu?",
+                    "opsi_c": "Dimana rumahmu?",
+                    "opsi_d": "Berapa umurmu?",
+                    "jawaban_benar": "B",
+                    "penjelasan": "'How are you?' adalah sapaan untuk menanyakan kabar seseorang.",
+                },
+                {
+                    "pertanyaan": "Manakah yang merupakan sapaan formal?",
+                    "opsi_a": "Hey!",
+                    "opsi_b": "What's up?",
+                    "opsi_c": "Good morning, Sir.",
+                    "opsi_d": "Yo!",
+                    "jawaban_benar": "C",
+                    "penjelasan": "'Good morning, Sir.' adalah sapaan formal yang cocok untuk situasi resmi.",
+                },
+                {
+                    "pertanyaan": "Apa jawaban yang tepat untuk 'What is your name?'",
+                    "opsi_a": "I am fine.",
+                    "opsi_b": "My name is Rina.",
+                    "opsi_c": "I like reading.",
+                    "opsi_d": "I am 20 years old.",
+                    "jawaban_benar": "B",
+                    "penjelasan": "'What is your name?' menanyakan nama, jadi jawabannya adalah 'My name is ...'",
+                },
+            ]
+            for i, q in enumerate(quiz_samples):
+                exists = (
+                    db.query(QuizQuestion)
+                    .filter(
+                        QuizQuestion.material_id == greetings_mod.id,
+                        QuizQuestion.pertanyaan == q["pertanyaan"],
+                    )
+                    .first()
+                )
+                if not exists:
+                    db.add(
+                        QuizQuestion(
+                            material_id=greetings_mod.id,
+                            level="pemula",
+                            **q,
+                        )
+                    )
+
+        # 9) Sample simplified material
+        if greetings_mod:
+            exists = (
+                db.query(SimplifiedMaterial)
+                .filter(
+                    SimplifiedMaterial.material_id == greetings_mod.id,
+                    SimplifiedMaterial.student_id == students["240001"].id,
+                )
+                .first()
+            )
+            if not exists:
+                db.add(
+                    SimplifiedMaterial(
+                        material_id=greetings_mod.id,
+                        student_id=students["240001"].id,
+                        konten_sederhana=(
+                            "Greetings adalah sapaan dalam Bahasa Inggris. "
+                            "Beberapa contoh:\n"
+                            "- Hello / Hi = Halo\n"
+                            "- Good morning = Selamat pagi\n"
+                            "- How are you? = Apa kabar?\n"
+                            "- My name is ... = Nama saya ...\n\n"
+                            "Tips: Gunakan 'Good morning/afternoon/evening' "
+                            "untuk sapaan formal, dan 'Hi/Hello' untuk santai."
+                        ),
+                    )
+                )
+
+        # 10) Sample quiz attempt + explanation
+        quiz_q = db.query(QuizQuestion).first()
+        if quiz_q:
+            exists = (
+                db.query(QuizAttempt)
+                .filter(
+                    QuizAttempt.student_id == students["240001"].id,
+                    QuizAttempt.question_id == quiz_q.id,
+                )
+                .first()
+            )
+            if not exists:
+                wrong_answer = "A" if quiz_q.jawaban_benar != "A" else "B"
+                attempt = QuizAttempt(
+                    student_id=students["240001"].id,
+                    question_id=quiz_q.id,
+                    jawaban_siswa=wrong_answer,
+                    is_correct=False,
+                )
+                db.add(attempt)
+                db.flush()
+                db.add(
+                    AnswerExplanation(
+                        quiz_attempt_id=attempt.id,
+                        penjelasan_ai=(
+                            "Jawaban kamu kurang tepat. "
+                            f"Jawaban yang benar adalah {quiz_q.jawaban_benar}, "
+                            f"karena {quiz_q.pertanyaan.lower()}"
+                        ),
+                        tips="Perhatikan konteks pertanyaan dan pilihan jawaban dengan seksama.",
+                    )
+                )
+
+        # 11) Sample chat messages
+        student_rina = students["240001"]
+        exists = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.student_id == student_rina.id)
+            .first()
+        )
+        if not exists:
+            db.add(
+                ChatMessage(
+                    student_id=student_rina.id,
+                    role="user",
+                    pesan="Halo, bagaimana cara menyapa dalam Bahasa Inggris?",
+                )
+            )
+            db.add(
+                ChatMessage(
+                    student_id=student_rina.id,
+                    role="assistant",
+                    pesan=(
+                        "Halo! Ada beberapa cara menyapa dalam Bahasa Inggris:\n"
+                        "- Formal: Good morning/afternoon/evening\n"
+                        "- Santai: Hi, Hello, Hey\n"
+                        "- Menanyakan kabar: How are you? / How's it going?\n\n"
+                        "Mau latihan menyapa?"
+                    ),
+                )
+            )
+
+        # 12) Sample diagnostic result
+        exists = (
+            db.query(DiagnosticResult)
+            .filter(DiagnosticResult.student_id == student_rina.id)
+            .first()
+        )
+        if not exists:
+            import json as _json
+
+            db.add(
+                DiagnosticResult(
+                    student_id=student_rina.id,
+                    kompetensi_skor=_json.dumps({
+                        "grammar": 65,
+                        "vocabulary": 78,
+                        "listening": 55,
+                        "speaking": 40,
+                        "reading": 72,
+                    }),
+                    gaya_belajar="visual",
+                )
+            )
 
         db.commit()
         print("Seed berhasil!")

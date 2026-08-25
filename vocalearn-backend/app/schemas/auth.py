@@ -13,9 +13,10 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=6)
     full_name: str
     role: str = "mahasiswa"
-    nim: Optional[str] = None
+    nim: str
     nip: Optional[str] = None
-    prodi: Optional[str] = None
+    prodi: str
+    kelas_id: int
 
 
 class TokenResponse(BaseModel):

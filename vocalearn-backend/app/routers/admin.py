@@ -36,6 +36,7 @@ def create_user_route(req: UserCreate, db: Session = Depends(get_db)):
         nim=req.nim,
         nip=req.nip,
         prodi=req.prodi,
+        kelas_id=req.kelas_id,
     )
 
 

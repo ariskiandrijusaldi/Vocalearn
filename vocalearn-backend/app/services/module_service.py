@@ -25,7 +25,10 @@ def create_module(db: Session, req: ModuleCreate, created_by: int) -> Module:
         content=req.content,
         difficulty=req.difficulty,
         order_index=req.order_index,
-        status=ModuleStatus.DRAFT,
+        youtube_url=req.youtube_url,
+        kelas_id=req.kelas_id,
+        status=ModuleStatus.PUBLISHED,
+        published_at=datetime.now(),
         created_by=created_by,
     )
     db.add(mod)
@@ -63,14 +66,36 @@ def approve_module(
     reviewed_by: int,
     note: str | None = None,
 ) -> Module:
-    """review -> published (disetujui super admin)."""
+    """review/draft -> published (disetujui super admin)."""
     mod = get_module_or_404(db, module_id)
-    if mod.status != ModuleStatus.REVIEW:
-        raise HTTPException(status_code=400, detail="Modul harus dalam status review")
+    if mod.status == ModuleStatus.PUBLISHED:
+        raise HTTPException(status_code=400, detail="Modul sudah diterbitkan")
+    if mod.status not in (ModuleStatus.REVIEW, ModuleStatus.DRAFT):
+        raise HTTPException(status_code=400, detail="Modul harus dalam status review atau draft")
 
     mod.status = ModuleStatus.PUBLISHED
     mod.reviewed_by = reviewed_by
     mod.review_note = note or "Disetujui"
+    mod.published_at = datetime.now()
+    db.commit()
+    db.refresh(mod)
+    return mod
+
+
+def publish_module(
+    db: Session,
+    module_id: int,
+    reviewed_by: int,
+    note: str | None = None,
+) -> Module:
+    """draft -> published (langsung terbitkan oleh super admin)."""
+    mod = get_module_or_404(db, module_id)
+    if mod.status == ModuleStatus.PUBLISHED:
+        raise HTTPException(status_code=400, detail="Modul sudah diterbitkan")
+
+    mod.status = ModuleStatus.PUBLISHED
+    mod.reviewed_by = reviewed_by
+    mod.review_note = note or "Diterbitkan langsung oleh admin"
     mod.published_at = datetime.now()
     db.commit()
     db.refresh(mod)
@@ -83,11 +108,14 @@ def reject_module(
     reviewed_by: int,
     note: str | None = None,
 ) -> Module:
-    """review -> draft (ditolak, kembali ke dosen)."""
+    """status apa pun -> draft (ditolak, kembali ke dosen)."""
     mod = get_module_or_404(db, module_id)
+    was_published = mod.status == ModuleStatus.PUBLISHED
     mod.status = ModuleStatus.DRAFT
     mod.reviewed_by = reviewed_by
     mod.review_note = note or "Ditolak, mohon direvisi"
+    if was_published:
+        mod.published_at = None
     db.commit()
     db.refresh(mod)
     return mod

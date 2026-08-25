@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -27,9 +27,11 @@ class User(Base):
     nim = Column(String(20), nullable=True, unique=True)
     nip = Column(String(20), nullable=True, unique=True)
     prodi = Column(String(120), nullable=True)
+    kelas_id = Column(Integer, ForeignKey("kelas.id", ondelete="SET NULL"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
+    kelas = relationship("Kelas", foreign_keys=[kelas_id])
     created_modules = relationship(
         "Module",
         back_populates="creator",

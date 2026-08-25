@@ -1,176 +1,385 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
-import '../../data/models/competency.dart';
-import '../../data/providers/competency_provider.dart';
 
-/// ==========================================================
-/// TRACK MAHASISWA — Langkah 7: Progress & Gamifikasi
-/// ==========================================================
-/// Terhubung ke to-do list §7 & Mini-PRD Fitur 3.
-/// Acceptance criteria:
-///   - 1 halaman menampilkan semua Competency dengan warna status
-///   - minimal 1 badge muncul saat 1 kompetensi mencapai status "dikuasai"
-///
-/// Sengaja TIDAK dibuat leaderboard/badge bertingkat (out of scope
-/// di Mini-PRD) — gamifikasi di sini memang dibuat ringan.
-class ProgressScreen extends ConsumerWidget {
+import '../../core/theme/app_colors.dart';
+import '../../data/providers/auth_provider.dart';
+import '../../data/repositories/dosen_service.dart';
+
+class ProgressScreen extends ConsumerStatefulWidget {
   const ProgressScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final competencies = ref.watch(competencyProvider);
-    final masteredCompetencies =
-    competencies.where((c) => c.status == CompetencyStatus.dikuasai).toList();
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Progress Kompetensi')),
-      body: competencies.isEmpty
-          ? const Center(child: Text('Isi diagnostik awal dulu untuk melihat progres.'))
-          : ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Grafik Kompetensi', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 220,
-            child: _CompetencyBarChart(competencies: competencies),
-          ),
-          const SizedBox(height: 24),
-
-          Text('Rincian per Kompetensi', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          ...competencies.map(
-                (c) => Card(
-              child: ListTile(
-                title: Text(c.name),
-                subtitle: LinearProgressIndicator(
-                  value: c.masteryScore,
-                  color: _colorForStatus(c.status),
-                ),
-                trailing: Text('${(c.masteryScore * 100).round()}%'),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          Text('Lencana Pencapaian', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (masteredCompetencies.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Belum ada lencana — selesaikan modul praktik '
-                    'sampai kompetensimu berstatus "Dikuasai".'),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: masteredCompetencies
-                  .map((c) => _BadgeChip(competencyName: c.name))
-                  .toList(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Color _colorForStatus(CompetencyStatus status) {
-    return switch (status) {
-      CompetencyStatus.dikuasai => Colors.green,
-      CompetencyStatus.dalamProses => Colors.orange,
-      CompetencyStatus.perluIntervensi => Colors.red,
-      CompetencyStatus.belumMulai => Colors.grey,
-    };
-  }
+  ConsumerState<ProgressScreen> createState() => _ProgressScreenState();
 }
 
-class _CompetencyBarChart extends StatelessWidget {
-  final List<Competency> competencies;
-  const _CompetencyBarChart({required this.competencies});
+class _ProgressScreenState extends ConsumerState<ProgressScreen> {
+  Map<String, dynamic>? _recommendation;
+  bool _isLoading = true;
 
-  Color _colorForStatus(CompetencyStatus status) {
-    return switch (status) {
-      CompetencyStatus.dikuasai => Colors.green,
-      CompetencyStatus.dalamProses => Colors.orange,
-      CompetencyStatus.perluIntervensi => Colors.red,
-      CompetencyStatus.belumMulai => Colors.grey,
-    };
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommendation();
+  }
+
+  Future<void> _loadRecommendation() async {
+    setState(() => _isLoading = true);
+    try {
+      final studentId = ref.read(authProvider).user?.id ?? 0;
+      final data = await DosenService().getRecommendation(studentId);
+      setState(() {
+        _recommendation = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BarChart(
-      BarChartData(
-        maxY: 1.0,
-        alignment: BarChartAlignment.spaceAround,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true, reservedSize: 32, interval: 0.25),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index < 0 || index >= competencies.length) return const SizedBox();
-                final label = competencies[index].name;
-                final shortLabel =
-                label.length > 10 ? '${label.substring(0, 9)}…' : label;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(shortLabel, style: const TextStyle(fontSize: 10)),
-                );
-              },
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _recommendation == null
+                ? const Center(child: Text('Isi diagnostik awal dulu untuk melihat progres.'))
+                : _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final competencies = _recommendation!['competencies'] as List<dynamic>? ?? [];
+    final risk = _recommendation!['risk'] as Map<String, dynamic>? ?? {};
+    final nextModule = _recommendation!['next_module'] as Map<String, dynamic>?;
+
+    final radarData = competencies.map((c) {
+      return ((c['mastery'] ?? 0.0) as num).toDouble();
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: _loadRecommendation,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(24, 18, 24, 30),
+        children: [
+          const Text(
+            'Progress Kompetensi',
+            style: TextStyle(
+              color: AppColors.dark,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        barGroups: [
-          for (var i = 0; i < competencies.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: competencies[i].masteryScore,
-                  color: _colorForStatus(competencies[i].status),
-                  width: 28,
-                  borderRadius: BorderRadius.circular(4),
+          const SizedBox(height: 16),
+          const Text(
+            'Grafik Kompetensi',
+            style: TextStyle(
+              color: AppColors.greenDark,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Radar chart
+          if (radarData.isNotEmpty && radarData.length >= 3)
+            Container(
+              height: 256,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.sage.withAlpha(51)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x08000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: CustomPaint(
+                painter: _RadarPainter(data: radarData),
+                child: const SizedBox.expand(),
+              ),
+            )
+          else if (radarData.isNotEmpty && radarData.length < 3)
+            Container(
+              height: 256,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.sage.withAlpha(51)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x08000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  'Perlu minimal 3 kompetensi untuk radar chart.\nSekarang: ${radarData.length} kompetensi.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.body, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            Container(
+              height: 256,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(child: Text('Belum ada data kompetensi.')),
+            ),
+
+          const SizedBox(height: 22),
+
+          // Skill cards
+          ...competencies.map((c) {
+            final mastery = ((c['mastery'] ?? 0.0) as num).toDouble();
+            final title = c['module_title'] ?? 'Kompetensi';
+            final (status, color) = _statusFromMastery(mastery);
+            return _SkillCard(title: title, status: status, value: mastery, color: color);
+          }),
+
+          if (competencies.isEmpty)
+            const _SkillCard(title: 'Belum ada data', status: 'BELUM MULAI', value: 0, color: AppColors.muted),
+
+          const SizedBox(height: 16),
+
+          // Risk status
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _riskColor(risk['level'] as String? ?? 'low').withAlpha(38),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.shield,
+                  color: _riskColor(risk['level'] as String? ?? 'low'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Status Risiko: ${_riskLabel(risk['level'] as String? ?? 'low')}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Rata-rata skor: ${((risk['average_score'] ?? 0.0) as num).toInt()}%'
+                            ' \u2022 ${risk['attempt_count'] ?? 0} percobaan',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+          ),
+
+          // Next module
+          if (nextModule != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+              decoration: BoxDecoration(
+                color: AppColors.dark,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'DIREKOMENDASIKAN UNTUKMU',
+                    style: TextStyle(
+                      color: const Color(0xFFBEB069),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    nextModule['title'] ?? '',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    nextModule['description'] ?? 'Mulai modul ini.',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(204),
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+
+  Color _riskColor(String level) {
+    return switch (level) {
+      'high' => AppColors.red,
+      'medium' => AppColors.yellow,
+      _ => AppColors.green2,
+    };
+  }
+
+  String _riskLabel(String level) {
+    return switch (level) {
+      'high' => 'Tinggi',
+      'medium' => 'Sedang',
+      _ => 'Rendah',
+    };
+  }
+
+  (String, Color) _statusFromMastery(double mastery) {
+    if (mastery >= 0.7) return ('DIKUASAI', AppColors.green2);
+    if (mastery >= 0.4) return ('PROSES', AppColors.yellow);
+    return ('PERLU BANTUAN', AppColors.red);
+  }
 }
 
-class _BadgeChip extends StatelessWidget {
-  final String competencyName;
-  const _BadgeChip({required this.competencyName});
+class _SkillCard extends StatelessWidget {
+  final String title, status;
+  final double value;
+  final Color color;
+  const _SkillCard({required this.title, required this.status, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFFFD54F), Color(0xFFFFA726)]),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
         children: [
-          const Icon(Icons.emoji_events, color: Colors.white, size: 20),
-          const SizedBox(width: 8),
-          Text(competencyName,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: value,
+              minHeight: 8,
+              backgroundColor: AppColors.cream,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _RadarPainter extends CustomPainter {
+  final List<double> data;
+  _RadarPainter({required this.data});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFE0E4DC);
+    final center = Offset(size.width / 2, size.height / 2 + 4);
+    final r = size.shortestSide * .32;
+    for (int i = 1; i <= 3; i++) {
+      canvas.drawCircle(center, r * i / 3, p);
+    }
+
+    final axis = Paint()
+      ..color = const Color(0xFFE0E4DC)
+      ..strokeWidth = 1;
+    final n = data.length;
+    for (int i = 0; i < n; i++) {
+      final a = -math.pi / 2 + i * 2 * math.pi / n;
+      canvas.drawLine(
+        center,
+        center + Offset(r * 1.45 * math.cos(a), r * 1.45 * math.sin(a)),
+        axis,
+      );
+    }
+
+    final fill = Paint()
+      ..color = AppColors.green.withAlpha(56)
+      ..style = PaintingStyle.fill;
+    final line = Paint()
+      ..color = AppColors.green
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (int i = 0; i < n; i++) {
+      final a = -math.pi / 2 + i * 2 * math.pi / n;
+      final pt = center + Offset(r * data[i] * math.cos(a), r * data[i] * math.sin(a));
+      if (i == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, line);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

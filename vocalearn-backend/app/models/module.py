@@ -25,9 +25,12 @@ class Module(Base):
     difficulty = Column(Integer, default=1)  # 1..5
     order_index = Column(Integer, default=0)
     status = Column(String(20), default=ModuleStatus.DRAFT, index=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     review_note = Column(Text, nullable=True)
+    pdf_path = Column(String(500), nullable=True)
+    youtube_url = Column(String(500), nullable=True)
+    kelas_id = Column(Integer, ForeignKey("kelas.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
@@ -41,4 +44,5 @@ class Module(Base):
         foreign_keys="Module.created_by",
     )
     reviewer = relationship("User", foreign_keys="Module.reviewed_by")
+    kelas = relationship("Kelas", foreign_keys="Module.kelas_id")
     interactions = relationship("Interaction", back_populates="module")

@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import User
-from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserOut
-from app.security import create_access_token, verify_password
+from app.schemas import ChangePassword, LoginRequest, RegisterRequest, TokenResponse, UserOut
+from app.security import create_access_token, hash_password, verify_password
 from app.services.user_service import create_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -35,9 +35,24 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         nim=req.nim,
         nip=req.nip,
         prodi=req.prodi,
+        kelas_id=req.kelas_id,
     )
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.post("/change-password")
+def change_password(
+    req: ChangePassword,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(req.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Password lama salah")
+
+    user.password_hash = hash_password(req.new_password)
+    db.commit()
+    return {"detail": "Password berhasil diubah"}

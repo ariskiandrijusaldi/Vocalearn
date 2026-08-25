@@ -5,7 +5,7 @@ dan tren skor terakhir.
 """
 from sqlalchemy.orm import Session
 
-from app.models import Interaction
+from app.models import Interaction, QuizResult
 
 HIGH_AVG = 55.0
 MEDIUM_AVG = 70.0
@@ -13,14 +13,22 @@ MIN_ATTEMPTS = 3
 
 
 def assess_risk(db: Session, student_id: int) -> dict:
-    interactions = (
-        db.query(Interaction)
+    # Gabungkan skor dari Interaction (alur lama) dan QuizResult (kuis AI),
+    # diurutkan dari yang terbaru.
+    entries: list[tuple[object, float]] = [
+        (i.created_at, float(i.score))
+        for i in db.query(Interaction)
         .filter(Interaction.student_id == student_id)
-        .order_by(Interaction.created_at.desc())
         .all()
-    )
+    ] + [
+        (q.created_at, float(q.skor))
+        for q in db.query(QuizResult)
+        .filter(QuizResult.student_id == student_id)
+        .all()
+    ]
+    entries.sort(key=lambda t: t[0], reverse=True)
 
-    if not interactions:
+    if not entries:
         return {
             "level": "low",
             "average_score": 0.0,
@@ -28,7 +36,7 @@ def assess_risk(db: Session, student_id: int) -> dict:
             "reasons": ["Belum ada aktivitas belajar — mulailah dengan modul pertama."],
         }
 
-    scores = [i.score for i in interactions]
+    scores = [score for _, score in entries]
     avg = sum(scores) / len(scores)
     reasons: list[str] = []
 

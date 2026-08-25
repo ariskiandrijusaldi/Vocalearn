@@ -1,17 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Asisten belajar berbasis NLP (§6 to-do list, Mini-PRD Fitur 2).
-///
-/// Untuk hackathon: respons berbasis template/keyword dulu (bukan mock
-/// total kosong, tapi juga belum manggil LLM sungguhan) supaya bisa
-/// didemokan tanpa tergantung backend.
-///
-/// TODO (Alya, koordinasi dengan Arrizki): ganti [AssistantRepository.ask]
-/// agar memanggil endpoint backend, misalnya:
-///   POST /assistant/ask  { "message": "...", "moduleId": "..." }
-/// yang di baliknya backend Arrizki memanggil LLM API. Jangan panggil
-/// LLM API langsung dari Flutter app — API key tidak boleh ditaruh di
-/// sisi client.
 class ChatMessage {
   final String text;
   final bool isUser;
@@ -59,7 +47,7 @@ class AssistantChatController extends StateNotifier<List<ChatMessage>> {
     state = [...state, ChatMessage(text: text, isUser: true)];
 
     isLoading = true;
-    state = [...state]; // trigger rebuild untuk indikator loading di UI
+    state = [...state];
     final reply = await _repository.ask(text);
     isLoading = false;
 

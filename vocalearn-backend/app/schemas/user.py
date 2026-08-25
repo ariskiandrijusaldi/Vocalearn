@@ -14,6 +14,8 @@ class UserOut(ORMBase):
     nim: Optional[str] = None
     nip: Optional[str] = None
     prodi: Optional[str] = None
+    kelas_id: Optional[int] = None
+    kelas_name: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -26,6 +28,7 @@ class UserCreate(BaseModel):
     nim: Optional[str] = None
     nip: Optional[str] = None
     prodi: Optional[str] = None
+    kelas_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -34,5 +37,11 @@ class UserUpdate(BaseModel):
     nim: Optional[str] = None
     nip: Optional[str] = None
     prodi: Optional[str] = None
+    kelas_id: Optional[int] = None
     password: Optional[str] = Field(default=None, min_length=6)
     is_active: Optional[bool] = None
+
+
+class ChangePassword(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=6)

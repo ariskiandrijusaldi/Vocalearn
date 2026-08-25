@@ -1,8 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-/// State profil mahasiswa. Untuk hackathon, disimpan di memori (Riverpod)
-/// dulu — belum ke backend. Nanti begitu Arrizki siapkan API/Firestore,
-/// tinggal tambahkan pemanggilan API di dalam StudentProfileController.
 class StudentProfile {
   final String? programStudi;
   final String? mataKuliah;
@@ -31,8 +27,7 @@ class StudentProfileController extends StateNotifier<StudentProfile> {
   StudentProfileController() : super(const StudentProfile());
 
   void save({required String programStudi, required String mataKuliah}) {
-    // TODO (Alya, setelah backend Arrizki siap): kirim juga ke API/Firestore
-    // di sini, bukan cuma disimpan lokal.
+
     state = StudentProfile(
       programStudi: programStudi,
       mataKuliah: mataKuliah,

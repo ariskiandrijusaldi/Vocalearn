@@ -1,9 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/competency.dart';
 import 'competency_provider.dart';
-
-/// Status modul praktik. Beda dari CompetencyStatus (itu status kompetensi,
-/// ini status modul individual dalam daftar).
 enum ModuleStatus { terkunci, direkomendasikan, selesai }
 
 class PracticeModuleItem {
@@ -34,18 +31,6 @@ class PracticeModuleItem {
     );
   }
 }
-
-/// Mengelola daftar modul + logika rekomendasi sederhana (§5/§6 to-do list).
-///
-/// Logika MVP (bukan AI Adaptive Engine penuh — itu tanggung jawab
-/// Arrizki di backend): dalam 1 kompetensi, modul pertama yang belum
-/// selesai jadi "direkomendasikan", modul setelahnya "terkunci" sampai
-/// modul sebelumnya selesai. Kompetensi dengan skor lebih rendah
-/// diprioritaskan tampil di atas.
-///
-/// TODO (Alya, setelah endpoint Arrizki siap): ganti logika lokal ini
-/// dengan urutan `recommendedModuleIds` dari GET /recommendation/{student_id}
-/// (lihat kontrak data di Mini-PRD).
 class ModuleController extends StateNotifier<List<PracticeModuleItem>> {
   ModuleController(this._ref) : super(_seedModules) {
     // Setiap kali hasil diagnostik berubah, hitung ulang rekomendasi.
@@ -118,9 +103,6 @@ class ModuleController extends StateNotifier<List<PracticeModuleItem>> {
 
   void _recalculate(List<Competency> competencies) {
     if (competencies.isEmpty) return;
-
-    // Urutkan kompetensi dari skor terendah -> tertinggi, supaya
-    // yang paling butuh bantuan direkomendasikan duluan.
     final sorted = [...competencies]
       ..sort((a, b) => a.masteryScore.compareTo(b.masteryScore));
 
@@ -150,8 +132,6 @@ class ModuleController extends StateNotifier<List<PracticeModuleItem>> {
     state = state
         .map((m) => m.id == moduleId ? m.copyWith(status: ModuleStatus.selesai) : m)
         .toList();
-    // Rekalkulasi supaya modul berikutnya dalam kompetensi yang sama
-    // otomatis jadi "direkomendasikan".
     _recalculate(_ref.read(competencyProvider));
   }
 }
