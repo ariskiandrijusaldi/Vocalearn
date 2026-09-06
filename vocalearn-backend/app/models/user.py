@@ -28,10 +28,17 @@ class User(Base):
     nip = Column(String(20), nullable=True, unique=True)
     prodi = Column(String(120), nullable=True)
     kelas_id = Column(Integer, ForeignKey("kelas.id", ondelete="SET NULL"), nullable=True)
+    jurusan_id = Column(
+        Integer,
+        ForeignKey("jurusans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     kelas = relationship("Kelas", foreign_keys=[kelas_id])
+    jurusan = relationship("Jurusan", foreign_keys=[jurusan_id])
     created_modules = relationship(
         "Module",
         back_populates="creator",

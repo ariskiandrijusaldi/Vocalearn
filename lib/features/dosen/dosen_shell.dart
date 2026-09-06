@@ -119,7 +119,7 @@ class _DosenShellState extends ConsumerState<DosenShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE8DF),
+      backgroundColor: AppColors.cream,
       body: switch (_currentIndex) {
         0 => const DosenDashboardScreen(),
         1 => const UploadMateriScreen(),

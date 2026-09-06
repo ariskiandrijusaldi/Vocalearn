@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/user_role.dart';
@@ -16,12 +17,57 @@ import '../../features/dosen/student_list_screen.dart';
 import '../../features/dosen/student_detail_screen.dart';
 import '../../features/admin/admin_home_screen.dart';
 
+// ============================================================
+// Listenable yang HANYA notify GoRouter saat status "isLoggedIn"
+// benar-benar berubah (login sukses / logout).
+//
+// TIDAK notify saat isLoading atau error berubah, supaya proses
+// login yang gagal (password salah, dsb) TIDAK memicu GoRouter
+// membuat ulang seluruh route tree / remount LoginScreen.
+// ============================================================
+class _AuthRouterRefresh extends ChangeNotifier {
+  _AuthRouterRefresh(this._ref) {
+    _lastLoggedIn = _ref.read(authProvider).isLoggedIn;
+    _sub = _ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.isLoggedIn != _lastLoggedIn) {
+        _lastLoggedIn = next.isLoggedIn;
+        notifyListeners();
+      }
+    });
+  }
+
+  final Ref _ref;
+  late bool _lastLoggedIn;
+  late final ProviderSubscription<AuthState> _sub;
+
+  @override
+  void dispose() {
+    _sub.close();
+    super.dispose();
+  }
+}
+
+final _authRouterRefreshProvider = Provider<_AuthRouterRefresh>((ref) {
+  final refresh = _AuthRouterRefresh(ref);
+  ref.onDispose(refresh.dispose);
+  return refresh;
+});
+
+// ============================================================
+// routerProvider — dibuat SATU KALI saja (tidak ref.watch(authProvider)
+// secara langsung), supaya instance GoRouter stabil dan tidak
+// memicu remount total setiap kali state auth berubah.
+// Redirect logic tetap baca status TERKINI lewat ref.read di dalam
+// callback redirect (dipanggil ulang otomatis oleh refreshListenable).
+// ============================================================
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final refresh = ref.watch(_authRouterRefreshProvider);
 
   return GoRouter(
     initialLocation: '/login',
+    refreshListenable: refresh,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
       final loggedIn = authState.isLoggedIn;
       final goingToLogin = state.matchedLocation == '/login';
 
@@ -44,7 +90,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
 
       // ---------- TRACK MAHASISWA ----------
-      // MahasiswaShell handles bottom nav with IndexedStack
       GoRoute(
         path: '/mahasiswa',
         builder: (context, state) => const MahasiswaShell(),

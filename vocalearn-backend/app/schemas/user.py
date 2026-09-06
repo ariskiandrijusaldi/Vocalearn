@@ -16,8 +16,11 @@ class UserOut(ORMBase):
     prodi: Optional[str] = None
     kelas_id: Optional[int] = None
     kelas_name: Optional[str] = None
+    jurusan_id: Optional[int] = None
+    jurusan_name: Optional[str] = None
     is_active: bool
     created_at: datetime
+    last_active_at: Optional[datetime] = None
 
 
 class UserCreate(BaseModel):
@@ -29,6 +32,7 @@ class UserCreate(BaseModel):
     nip: Optional[str] = None
     prodi: Optional[str] = None
     kelas_id: Optional[int] = None
+    jurusan_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -38,6 +42,7 @@ class UserUpdate(BaseModel):
     nip: Optional[str] = None
     prodi: Optional[str] = None
     kelas_id: Optional[int] = None
+    jurusan_id: Optional[int] = None
     password: Optional[str] = Field(default=None, min_length=6)
     is_active: Optional[bool] = None
 

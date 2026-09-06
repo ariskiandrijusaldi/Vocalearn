@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/theme/app_colors.dart';
+
 class MaterialDetailScreen extends StatelessWidget {
   final Map<String, dynamic> module;
   const MaterialDetailScreen({super.key, required this.module});
-
-  static const navy = Color(0xFF0F414A);
-  static const blue = Color(0xFF96C0CE);
 
   Color _statusColor(String status) {
     switch (status) {
@@ -43,10 +42,10 @@ class MaterialDetailScreen extends StatelessWidget {
     final difficulty = module['difficulty'] ?? 1;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE8DF),
+      backgroundColor: AppColors.cream,
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: navy,
+        backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
       body: ListView(
@@ -77,7 +76,7 @@ class MaterialDetailScreen extends StatelessWidget {
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: navy,
+              color: AppColors.dark,
             ),
           ),
 
@@ -113,7 +112,7 @@ class MaterialDetailScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: navy,
+                color: AppColors.dark,
               ),
             ),
             const SizedBox(height: 10),
@@ -163,7 +162,7 @@ class MaterialDetailScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: navy,
+                color: AppColors.dark,
               ),
             ),
             const SizedBox(height: 10),
@@ -188,13 +187,13 @@ class MaterialDetailScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: blue.withOpacity(0.25),
+                color: AppColors.sage.withOpacity(0.25),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline, color: navy, size: 20),
+                  const Icon(Icons.info_outline, color: AppColors.dark, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -204,7 +203,7 @@ class MaterialDetailScreen extends StatelessWidget {
                           'Catatan Review',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: navy,
+                            color: AppColors.dark,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -212,7 +211,7 @@ class MaterialDetailScreen extends StatelessWidget {
                           module['review_note'],
                           style: const TextStyle(
                             fontSize: 13,
-                            color: navy,
+                            color: AppColors.dark,
                           ),
                         ),
                       ],

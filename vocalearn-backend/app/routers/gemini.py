@@ -44,6 +44,7 @@ from app.schemas.ai import (
     DiagnosticResultOut,
     DiagnosticSubmitRequest,
     ExplainRequest,
+    QuizAttemptDetailOut,
     QuizAttemptOut,
     QuizGenerateRequest,
     QuizQuestionOut,
@@ -649,6 +650,25 @@ def save_quiz_result(
     if not material:
         raise HTTPException(status_code=404, detail="Materi tidak ditemukan")
 
+    existing = (
+        db.query(QuizResult)
+        .filter(
+            QuizResult.student_id == req.student_id,
+            QuizResult.material_id == req.material_id,
+        )
+        .order_by(QuizResult.created_at.desc())
+        .first()
+    )
+
+    if existing:
+        existing.skor = req.skor
+        existing.total_soal = req.total_soal
+        existing.jawaban_benar = req.jawaban_benar
+        existing.dikuasai = req.dikuasai
+        db.commit()
+        db.refresh(existing)
+        return existing
+
     result = QuizResult(
         student_id=req.student_id,
         material_id=req.material_id,
@@ -672,13 +692,73 @@ def get_quiz_results(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    from sqlalchemy.orm import joinedload
+
     return (
         db.query(QuizResult)
+        .options(joinedload(QuizResult.material))
         .filter(QuizResult.student_id == student_id)
         .order_by(QuizResult.created_at.desc())
         .limit(100)
         .all()
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /ai/quiz-attempts/{student_id}/{material_id}
+# Riwayat jawaban per soal untuk satu sesi kuis.
+# ---------------------------------------------------------------------------
+@router.get(
+    "/quiz-attempts/{student_id}/{material_id}",
+    response_model=list[QuizAttemptDetailOut],
+)
+def get_quiz_attempts(
+    student_id: int,
+    material_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # RBAC: mahasiswa hanya boleh melihat jawaban diri sendiri
+    if user.role == User.MAHASISWA and user.id != student_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Anda hanya bisa melihat riwayat jawaban sendiri",
+        )
+
+    attempts = (
+        db.query(QuizAttempt)
+        .join(QuizQuestion, QuizAttempt.question_id == QuizQuestion.id)
+        .filter(
+            QuizAttempt.student_id == student_id,
+            QuizQuestion.material_id == material_id,
+        )
+        .order_by(QuizAttempt.answered_at.desc())
+        .all()
+    )
+
+    result: list[QuizAttemptDetailOut] = []
+    for att in attempts:
+        q = att.question
+        expl = att.explanation
+        result.append(
+            QuizAttemptDetailOut(
+                attempt_id=att.id,
+                question_id=q.id,
+                pertanyaan=q.pertanyaan,
+                opsi_a=q.opsi_a,
+                opsi_b=q.opsi_b,
+                opsi_c=q.opsi_c,
+                opsi_d=q.opsi_d,
+                jawaban_siswa=att.jawaban_siswa,
+                jawaban_benar=q.jawaban_benar,
+                is_correct=att.is_correct,
+                penjelasan=q.penjelasan,
+                penjelasan_ai=expl.penjelasan_ai if expl else None,
+                tips=expl.tips if expl else None,
+                answered_at=att.answered_at,
+            )
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------

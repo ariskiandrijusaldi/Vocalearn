@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/providers/ai_provider.dart';
 import '../../data/providers/auth_provider.dart';
+import 'quiz_history_screen.dart';
 
 class NilaiScreen extends ConsumerStatefulWidget {
   const NilaiScreen({super.key});
@@ -102,6 +103,7 @@ class _NilaiScreenState extends ConsumerState<NilaiScreen> {
     final benar = (r['jawaban_benar'] ?? 0) as int;
     final total = (r['total_soal'] ?? 0) as int;
     final title = (r['material_title'] as String?) ?? 'Materi';
+    final materialId = (r['material_id'] as num?)?.toInt() ?? 0;
     final createdAt = r['created_at'] as String?;
     final warna = dikuasai ? AppColors.green2 : AppColors.yellow;
 
@@ -117,74 +119,101 @@ class _NilaiScreenState extends ConsumerState<NilaiScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: warna.withAlpha(38),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              '$skor',
-              style: TextStyle(
-                color: warna,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => QuizHistoryScreen(
+                  materialId: materialId,
+                  materialTitle: title,
+                  skor: skor,
+                  dikuasai: dikuasai,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  width: 52,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: warna.withAlpha(38),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    '$skor',
+                    style: TextStyle(
+                      color: warna,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  '$benar dari $total soal benar'
-                  '${tanggalText.isEmpty ? '' : ' \u2022 $tanggalText'}',
-                  style: const TextStyle(color: AppColors.body, fontSize: 11),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$benar dari $total soal benar'
+                        '${tanggalText.isEmpty ? '' : ' \u2022 $tanggalText'}',
+                        style: const TextStyle(
+                            color: AppColors.body, fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: warna,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    dikuasai ? 'DIKUASAI' : 'PERLU RANGKUMAN',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, size: 18, color: AppColors.muted),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: warna,
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Text(
-              dikuasai ? 'DIKUASAI' : 'PERLU RANGKUMAN',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -41,7 +41,24 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
-    return user
+    kelas_name = user.kelas.name if user.kelas else None
+    jurusan_name = user.jurusan.name if user.jurusan else None
+    data = {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "nim": user.nim,
+        "nip": user.nip,
+        "prodi": user.prodi,
+        "kelas_id": user.kelas_id,
+        "kelas_name": kelas_name,
+        "jurusan_id": user.jurusan_id,
+        "jurusan_name": jurusan_name,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+    }
+    return data
 
 
 @router.post("/change-password")

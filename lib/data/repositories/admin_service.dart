@@ -20,6 +20,8 @@ class AdminService {
     String? nim,
     String? nip,
     String? prodi,
+    int? kelasId,
+    int? jurusanId,
   }) async {
     final resp = await _dio.post('/admin/users', data: {
       'email': email,
@@ -29,6 +31,8 @@ class AdminService {
       if (nim != null) 'nim': nim,
       if (nip != null) 'nip': nip,
       if (prodi != null) 'prodi': prodi,
+      if (kelasId != null) 'kelas_id': kelasId,
+      if (jurusanId != null) 'jurusan_id': jurusanId,
     });
     return resp.data as Map<String, dynamic>;
   }
@@ -75,6 +79,7 @@ class AdminService {
   Future<Map<String, dynamic>> createCourse({
     required String code,
     required String name,
+    String? prodi,
     int semester = 1,
     int credits = 3,
     String? description,
@@ -82,6 +87,7 @@ class AdminService {
     final resp = await _dio.post('/courses', data: {
       'code': code,
       'name': name,
+      if (prodi != null && prodi.isNotEmpty) 'prodi': prodi,
       'semester': semester,
       'credits': credits,
       if (description != null && description.isNotEmpty)
@@ -92,6 +98,26 @@ class AdminService {
 
   Future<void> deleteCourse(int courseId) async {
     await _dio.delete('/courses/$courseId');
+  }
+
+  Future<Map<String, dynamic>> updateCourse(
+    int courseId, {
+    required String code,
+    required String name,
+    String? prodi,
+    int semester = 1,
+    int credits = 3,
+    String? description,
+  }) async {
+    final resp = await _dio.patch('/courses/$courseId', data: {
+      'code': code,
+      'name': name,
+      'prodi': prodi,
+      'semester': semester,
+      'credits': credits,
+      'description': description,
+    });
+    return resp.data as Map<String, dynamic>;
   }
 
   // ==================== KELAS ====================
@@ -121,5 +147,41 @@ class AdminService {
 
   Future<void> deleteKelas(int kelasId) async {
     await _dio.delete('/kelas/$kelasId');
+  }
+
+  // ==================== JURUSAN & PRODI ====================
+
+  Future<List<dynamic>> getJurusan() async {
+    final resp = await _dio.get('/jurusan');
+    return resp.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createJurusan(String name) async {
+    final resp = await _dio.post('/jurusan', data: {'name': name});
+    return resp.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateJurusan(int id, String name) async {
+    final resp = await _dio.patch('/jurusan/$id', data: {'name': name});
+    return resp.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteJurusan(int id) async {
+    await _dio.delete('/jurusan/$id');
+  }
+
+  Future<Map<String, dynamic>> createProdi(int jurusanId, String name) async {
+    final resp =
+        await _dio.post('/jurusan/$jurusanId/prodi', data: {'name': name});
+    return resp.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateProdi(int prodiId, String name) async {
+    final resp = await _dio.patch('/jurusan/prodi/$prodiId', data: {'name': name});
+    return resp.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteProdi(int prodiId) async {
+    await _dio.delete('/jurusan/prodi/$prodiId');
   }
 }

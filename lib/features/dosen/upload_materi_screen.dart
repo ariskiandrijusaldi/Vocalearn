@@ -3,19 +3,20 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_colors.dart';
+import '../../data/providers/auth_provider.dart';
 import '../../data/repositories/dosen_service.dart';
 
-class UploadMateriScreen extends StatefulWidget {
+class UploadMateriScreen extends ConsumerStatefulWidget {
   const UploadMateriScreen({super.key});
 
   @override
-  State<UploadMateriScreen> createState() => _UploadMateriScreenState();
+  ConsumerState<UploadMateriScreen> createState() => _UploadMateriScreenState();
 }
 
-class _UploadMateriScreenState extends State<UploadMateriScreen> {
-  static const navy = Color(0xFF0F414A);
-
+class _UploadMateriScreenState extends ConsumerState<UploadMateriScreen> {
   final _judul = TextEditingController();
   final _deskripsi = TextEditingController();
   final _konten = TextEditingController();
@@ -156,6 +157,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final jurusanName = ref.watch(authProvider).user?.jurusanName;
     return SafeArea(
       child: _isLoadingCourses
           ? const Center(child: CircularProgressIndicator())
@@ -167,69 +169,140 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: navy,
+                    color: AppColors.dark,
                   ),
                 ),
+                if (jurusanName != null && jurusanName.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_tree_outlined,
+                            size: 15, color: AppColors.green),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Jurusan $jurusanName — hanya menampilkan mata '
+                            'kuliah dari jurusan Anda',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 20),
                 const Text(
                   'Mata Kuliah',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                if (_courses.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.sage.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 18, color: AppColors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            jurusanName == null
+                                ? 'Belum ada mata kuliah untuk diunggah'
+                                : 'Belum ada mata kuliah untuk jurusan '
+                                    '$jurusanName. Tambahkan lewat admin terlebih dahulu.',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.dark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButton<int>(
+                      value: _selectedCourseId,
+                      isExpanded: true,
+                      underline: const SizedBox(),
+                      hint: const Text('Pilih mata kuliah'),
+                      items: _courses
+                          .map<DropdownMenuItem<int>>((c) => DropdownMenuItem(
+                                value: c['id'] as int,
+                                child: Text('${c['code']} - ${c['name']}'),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedCourseId = v),
+                    ),
                   ),
-                  child: DropdownButton<int>(
-                    value: _selectedCourseId,
-                    isExpanded: true,
-                    underline: const SizedBox(),
-                    hint: const Text('Pilih mata kuliah'),
-                    items: _courses
-                        .map<DropdownMenuItem<int>>((c) => DropdownMenuItem(
-                              value: c['id'] as int,
-                              child: Text('${c['code']} - ${c['name']}'),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedCourseId = v),
-                  ),
-                ),
 
                 const SizedBox(height: 20),
 
                 const Text(
                   'Kelas',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                if (_kelasList.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.sage.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: AppColors.green),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Anda belum ditugaskan ke kelas manapun. '
+                            'Modul akan bersifat umum untuk semua kelas.',
+                            style: TextStyle(fontSize: 13, color: AppColors.dark),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButton<int>(
+                      value: _selectedKelasId,
+                      isExpanded: true,
+                      underline: const SizedBox(),
+                      hint: const Text('Semua kelas (umum)'),
+                      items: _kelasList
+                          .map<DropdownMenuItem<int>>((k) => DropdownMenuItem(
+                                value: k['id'] as int,
+                                child: Text(k['name'] ?? ''),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedKelasId = v),
+                    ),
                   ),
-                  child: DropdownButton<int>(
-                    value: _selectedKelasId,
-                    isExpanded: true,
-                    underline: const SizedBox(),
-                    hint: const Text('Semua kelas (umum)'),
-                    items: _kelasList
-                        .map<DropdownMenuItem<int>>((k) => DropdownMenuItem(
-                              value: k['id'] as int,
-                              child: Text(k['name'] ?? ''),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedKelasId = v),
-                  ),
-                ),
 
                 const SizedBox(height: 20),
 
                 const Text(
                   'Judul Modul',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -249,7 +322,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
 
                 const Text(
                   'Deskripsi',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -270,7 +343,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
 
                 const Text(
                   'Konten Materi',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -292,7 +365,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                 // PDF upload
                 const Text(
                   'File PDF (Opsional)',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 if (_selectedPdfName != null)
@@ -329,8 +402,8 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                       icon: const Icon(Icons.upload_file, size: 18),
                       label: const Text('Pilih File PDF'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: navy,
-                        side: const BorderSide(color: navy),
+                        foregroundColor: AppColors.dark,
+                        side: const BorderSide(color: AppColors.dark),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -344,7 +417,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                 // YouTube link
                 const Text(
                   'Link YouTube (Opsional)',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -366,7 +439,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
 
                 const Text(
                   'Tingkat Kesulitan',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: navy),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -380,14 +453,14 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                           margin: const EdgeInsets.symmetric(horizontal: 2),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            color: isSelected ? navy : Colors.white,
+                            color: isSelected ? AppColors.dark : Colors.white,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '$level',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: isSelected ? Colors.white : navy,
+                              color: isSelected ? Colors.white : AppColors.dark,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -405,7 +478,7 @@ class _UploadMateriScreenState extends State<UploadMateriScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _upload,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: navy,
+                      backgroundColor: AppColors.dark,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

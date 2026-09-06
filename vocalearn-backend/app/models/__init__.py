@@ -6,6 +6,8 @@ from app.models.enrollment import Enrollment
 from app.models.interaction import Interaction
 from app.models.kelas import Kelas
 from app.models.module import Module, ModuleStatus
+from app.models.prodi import Prodi
+from app.models.jurusan import Jurusan
 from app.models.quiz_attempt import QuizAttempt
 from app.models.quiz_question import QuizQuestion
 from app.models.quiz_result import QuizResult
@@ -22,6 +24,8 @@ __all__ = [
     "Kelas",
     "Module",
     "ModuleStatus",
+    "Prodi",
+    "Jurusan",
     "QuizAttempt",
     "QuizQuestion",
     "QuizResult",

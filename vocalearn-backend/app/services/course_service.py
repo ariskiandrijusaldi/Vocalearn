@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Course
@@ -33,5 +34,12 @@ def update_course(db: Session, course_id: int, req: CourseUpdate) -> Course:
 
 def delete_course(db: Session, course_id: int) -> None:
     course = get_course_or_404(db, course_id)
-    db.delete(course)
-    db.commit()
+    try:
+        db.delete(course)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Mata kuliah tidak bisa dihapus karena masih digunakan oleh data lain",
+        )

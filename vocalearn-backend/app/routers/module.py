@@ -11,6 +11,7 @@ from app.schemas import ModuleCreate, ModuleOut, ModuleReview, ModuleUpdate
 from app.services.module_service import (
     approve_module,
     create_module,
+    delete_module,
     get_module_or_404,
     publish_module,
     reject_module,
@@ -85,7 +86,16 @@ def update_module_route(
     db: Session = Depends(get_db),
     user: User = Depends(require_dosen_or_admin),
 ):
-    return update_module(db, module_id, req)
+    return update_module(db, module_id, req, user=user)
+
+
+@router.delete("/{module_id}", status_code=204)
+def delete_module_route(
+    module_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_dosen_or_admin),
+):
+    delete_module(db, module_id, user=user)
 
 
 @router.post("/{module_id}/upload-pdf", response_model=ModuleOut)

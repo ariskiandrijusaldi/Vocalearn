@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'student_detail_screen.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/repositories/dosen_service.dart';
+import 'student_detail_screen.dart';
 
 class StudentListScreen extends StatefulWidget {
   const StudentListScreen({super.key});
@@ -11,9 +12,6 @@ class StudentListScreen extends StatefulWidget {
 }
 
 class _StudentListScreenState extends State<StudentListScreen> {
-  static const cream = Color(0xFFEFE8DF);
-  static const navy = Color(0xFF0F414A);
-
   List<dynamic> _students = [];
   List<dynamic> _filteredStudents = [];
   bool _isLoading = true;
@@ -45,16 +43,97 @@ class _StudentListScreenState extends State<StudentListScreen> {
         final name = (s['full_name'] ?? '').toString().toLowerCase();
         final nim = (s['nim'] ?? '').toString().toLowerCase();
         final email = (s['email'] ?? '').toString().toLowerCase();
+        final kelas = (s['kelas_name'] ?? '').toString().toLowerCase();
         final q = query.toLowerCase();
-        return name.contains(q) || nim.contains(q) || email.contains(q);
+        return name.contains(q) || nim.contains(q) || email.contains(q) || kelas.contains(q);
       }).toList();
     });
   }
 
+  Map<String, List<dynamic>> _groupByKelas(List<dynamic> students) {
+    final map = <String, List<dynamic>>{};
+    for (final s in students) {
+      final kelas = (s['kelas_name'] ?? 'Tanpa Kelas').toString();
+      map.putIfAbsent(kelas, () => []).add(s);
+    }
+    final sorted = Map<String, List<dynamic>>.fromEntries(
+      map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+    return sorted;
+  }
+
+  Widget _buildGroupedList() {
+    final grouped = _groupByKelas(_filteredStudents);
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      itemCount: grouped.length,
+      itemBuilder: (context, index) {
+        final kelasName = grouped.keys.elementAt(index);
+        final students = grouped[kelasName]!;
+        return _kelasSection(kelasName, students);
+      },
+    );
+  }
+
+  Widget _kelasSection(String kelasName, List<dynamic> students) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      initiallyExpanded: true,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.dark.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.class_, size: 16, color: AppColors.dark),
+                const SizedBox(width: 6),
+                Text(
+                  kelasName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppColors.dark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${students.length} mahasiswa',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      ),
+      children: students.map((mhs) {
+        final avgScore = (mhs['avg_score'] ?? 0.0) as num;
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => StudentDetailScreen(
+                  studentId: mhs['id'] as int,
+                ),
+              ),
+            );
+          },
+          child: _studentCard(mhs, avgScore.toDouble()),
+        );
+      }).toList(),
+    );
+  }
+
   Color _statusColor(double avgScore) {
-    if (avgScore >= 70) return const Color(0xFF0F414A);
-    if (avgScore >= 40) return const Color(0xFFDBA98A);
-    return const Color(0xFF7F0303);
+    if (avgScore >= 70) return AppColors.green2;
+    if (avgScore >= 40) return AppColors.yellow;
+    return AppColors.red;
   }
 
   String _statusLabel(double avgScore) {
@@ -66,7 +145,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: AppColors.cream,
       body: SafeArea(
         child: Column(
           children: [
@@ -84,7 +163,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
-                          color: navy,
+                          color: AppColors.dark,
                         ),
                       ),
                       Text(
@@ -111,7 +190,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Cari mahasiswa...',
                   border: InputBorder.none,
-                  icon: Icon(Icons.search, color: navy),
+                  icon: Icon(Icons.search, color: AppColors.dark),
                 ),
               ),
             ),
@@ -126,28 +205,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                       ? const Center(child: Text('Tidak ada data mahasiswa'))
                       : RefreshIndicator(
                           onRefresh: _loadStudents,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: _filteredStudents.length,
-                            itemBuilder: (context, index) {
-                              final mhs = _filteredStudents[index];
-                              final avgScore =
-                                  (mhs['avg_score'] ?? 0.0) as num;
-                              return GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => StudentDetailScreen(
-                                        studentId: mhs['id'] as int,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: _studentCard(mhs, avgScore.toDouble()),
-                              );
-                            },
-                          ),
+                          child: _buildGroupedList(),
                         ),
             ),
           ],
@@ -192,7 +250,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: navy,
+                    color: AppColors.dark,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -204,7 +262,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   const SizedBox(height: 2),
                   Text(
                     'Kelas: ${mhs['kelas_name']}',
-                    style: const TextStyle(fontSize: 11, color: navy, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 11, color: AppColors.dark, fontWeight: FontWeight.w600),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -227,7 +285,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 '${avgScore.toInt()}%',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: navy,
+                  color: AppColors.dark,
                   fontSize: 18,
                 ),
               ),

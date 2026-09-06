@@ -17,6 +17,11 @@ class DosenService {
     return resp.data as List<dynamic>;
   }
 
+  Future<List<dynamic>> getDosenLeaderboard() async {
+    final resp = await _dio.get('/dosen/leaderboard');
+    return resp.data as List<dynamic>;
+  }
+
   Future<Map<String, dynamic>> getStudentDetail(int studentId) async {
     final resp = await _dio.get('/dosen/students/$studentId');
     return resp.data as Map<String, dynamic>;
@@ -43,6 +48,34 @@ class DosenService {
       if (kelasId != null) 'kelas_id': kelasId,
     });
     return resp.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateModule(
+    int moduleId, {
+    int? courseId,
+    String? title,
+    String? description,
+    String? content,
+    int? difficulty,
+    int? orderIndex,
+    String? youtubeUrl,
+    int? kelasId,
+  }) async {
+    final resp = await _dio.patch('/modules/$moduleId', data: {
+      if (courseId != null) 'course_id': courseId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (content != null) 'content': content,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (orderIndex != null) 'order_index': orderIndex,
+      if (youtubeUrl != null) 'youtube_url': youtubeUrl,
+      if (kelasId != null) 'kelas_id': kelasId,
+    });
+    return resp.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteModule(int moduleId) async {
+    await _dio.delete('/modules/$moduleId');
   }
 
   Future<Map<String, dynamic>> submitModule(int moduleId) async {
@@ -75,6 +108,11 @@ class DosenService {
   Future<Map<String, dynamic>> getRecommendation(int studentId) async {
     final resp = await _dio.get('/recommendation/$studentId');
     return resp.data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getLeaderboard() async {
+    final resp = await _dio.get('/leaderboard');
+    return resp.data as List<dynamic>;
   }
 
   Future<List<dynamic>> getInteractions() async {

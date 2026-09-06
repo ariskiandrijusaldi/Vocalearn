@@ -158,7 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 child: Transform.scale(
                   scale: 0.8 + 0.2 * iconT,
                   child: Image.asset(
-                    'assets/images/logo_vocalearn.jpg',
+                    'assets/images/logo_vocaLearn.png',
                     width: 84,
                     height: 84,
                   ),
@@ -202,7 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final authState = ref.watch(authProvider);
 
     // BILA REGISTER: Menggunakan Column + Expanded agar Panel Teal full mengisi layar bawah
-    // (TIDAK DIUBAH)
     if (_isRegistering) {
       return Column(
         children: [
@@ -242,10 +241,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       );
     }
 
-    // BILA LOGIN: layout persis seperti versi awal (TIDAK DIUBAH)
-    // BILA PILIH ROLE: panel teal dibuat "ngepas" mengikuti tinggi konten
-    // (menempel ke bawah layar) sehingga tidak ada ruang kosong
-    // di bawah tombol Super Admin.
+    // BILA LOGIN / PILIH ROLE
     return SafeArea(
       child: Column(
         children: [
@@ -283,9 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ------------------------------------------------------------
-  // Panel pemilihan role — tinggi mengikuti konten (ngepas),
-  // ditempelkan ke bagian bawah layar agar tidak ada celah kosong
-  // setelah tombol Super Admin, tanpa mengganggu logic apa pun.
+  // Panel pemilihan role — tinggi mengikuti konten (ngepas)
   // ------------------------------------------------------------
   Widget _buildRoleSelectionPanel(AuthState authState) {
     return Align(
@@ -404,7 +398,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/images/logo_vocalearn.jpg',
+              'assets/images/logo_vocaLearn.png',
               width: 36,
               height: 36,
             ),
@@ -435,7 +429,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/images/logo_vocalearn.jpg',
+              'assets/images/logo_vocaLearn.png',
               width: 94,
               height: 94,
             ),
@@ -508,7 +502,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // STEP 2a — Form Login (TIDAK DIUBAH)
+  // STEP 2a — Form Login
   // ============================================================
   Widget _buildLoginForm(AuthState authState) {
     final isDosen = _selectedRole == 'dosen';
@@ -577,9 +571,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
         if (authState.error != null) ...[
           const SizedBox(height: 10),
-          Text(
-            authState.error!,
-            style: const TextStyle(fontSize: 12, color: Color(0xFFFFB4B4)),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFFB4B4), width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    size: 16, color: Color(0xFFFFB4B4)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    authState.error!,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFFFFB4B4)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
 
@@ -587,18 +600,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         _GoldButton(
           isLoading: authState.isLoading,
           label: 'SIGN IN',
-          onPressed: authState.isLoading
-              ? null
-              : () async {
-            await ref.read(authProvider.notifier).login(
-              _emailController.text.trim(),
-              _passwordController.text.trim(),
-            );
-            if (context.mounted) {
-              final role = ref.read(authProvider).user?.role;
-              if (role != null) context.go(role.homePath);
-            }
-          },
+          onPressed: authState.isLoading ? null : _handleLogin,
         ),
 
         const SizedBox(height: 14),
@@ -633,7 +635,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // STEP 2b — Form Register (TIDAK DIUBAH)
+  // STEP 2b — Form Register
   // ============================================================
   Widget _buildRegisterForm(AuthState authState) {
     return Column(
@@ -735,7 +737,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             value: _selectedKelasId,
             isExpanded: true,
             underline: const SizedBox(),
-            hint: const Text('Pilih kelas', style: TextStyle(color: Colors.black38)),
+            hint: const Text('Pilih kelas',
+                style: TextStyle(color: Colors.black38)),
             items: _kelasList
                 .map<DropdownMenuItem<int>>((k) => DropdownMenuItem(
               value: k['id'] as int,
@@ -751,9 +754,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
         if (authState.error != null) ...[
           const SizedBox(height: 10),
-          Text(
-            authState.error!,
-            style: const TextStyle(fontSize: 12, color: Color(0xFFFFB4B4)),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFFB4B4), width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    size: 16, color: Color(0xFFFFB4B4)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    authState.error!,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFFFFB4B4)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
 
@@ -791,8 +813,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // LOGIC (TIDAK DIUBAH)
+  // LOGIC
   // ============================================================
+
+  /// Handler untuk tombol SIGN IN.
+  /// Dibungkus try-catch sebagai jaring pengaman terakhir supaya
+  /// _selectedRole (state lokal layar ini) TIDAK pernah ke-reset
+  /// hanya karena login gagal / password salah. Kalau ada error
+  /// tak terduga, cukup tampilkan pesan error dan tetap di form ini.
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ref.read(authProvider.notifier).setError('Email dan password wajib diisi');
+      return;
+    }
+
+    try {
+      await ref.read(authProvider.notifier).login(email, password);
+    } catch (_) {
+      // Jaring pengaman terakhir: kalau ada exception yang lolos
+      // dari AuthController, jangan biarkan layar berubah/reset.
+      if (mounted) {
+        ref.read(authProvider.notifier).setError('Terjadi kesalahan, coba lagi');
+      }
+      return;
+    }
+
+    if (!mounted || !context.mounted) return;
+
+    final state = ref.read(authProvider);
+
+    // Login gagal -> authState.error sudah terisi dari AuthController,
+    // cukup diam di form ini (tidak reset _selectedRole).
+    if (!state.isLoggedIn || state.user == null) {
+      return;
+    }
+
+    // Login sukses -> baru pindah halaman sesuai role.
+    context.go(state.user!.role.homePath);
+  }
+
   Future<void> _register() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
@@ -817,21 +879,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
-    await ref.read(authProvider.notifier).register(
-      email: email,
-      password: password,
-      fullName: name,
-      nim: nim,
-      prodi: prodi,
-      kelasId: _selectedKelasId!,
-    );
-
-    if (context.mounted) {
-      final state = ref.read(authProvider);
-      if (state.error == null && state.isLoggedIn) {
-        context.go('/mahasiswa');
+    try {
+      await ref.read(authProvider.notifier).register(
+        email: email,
+        password: password,
+        fullName: name,
+        nim: nim,
+        prodi: prodi,
+        kelasId: _selectedKelasId!,
+      );
+    } catch (_) {
+      if (mounted) {
+        ref.read(authProvider.notifier).setError('Terjadi kesalahan, coba lagi');
       }
+      return;
     }
+
+    if (!mounted || !context.mounted) return;
+
+    final state = ref.read(authProvider);
+    if (state.error == null && state.isLoggedIn) {
+      context.go('/mahasiswa');
+    }
+    // Gagal register -> tetap di form register, error sudah tampil.
   }
 
   void _backToRoleSelection() {
@@ -861,7 +931,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 }
 
 // ============================================================
-// UI PARTS (TIDAK DIUBAH)
+// UI PARTS
 // ============================================================
 class _FieldLabel extends StatelessWidget {
   final String text;
@@ -972,19 +1042,9 @@ class _SocialIconsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget circle(Widget child) => Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: child,
-    );
-
-    return Row(
+    return const Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      children: [],
     );
   }
 }

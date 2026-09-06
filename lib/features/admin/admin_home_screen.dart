@@ -28,6 +28,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     'Mata Kuliah',
     'Monitoring',
     'Kelas',
+    'Jurusan',
   ];
   static const _icons = [
     Icons.school_outlined,
@@ -35,6 +36,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     Icons.collections_bookmark_outlined,
     Icons.query_stats_outlined,
     Icons.class_outlined,
+    Icons.account_tree_outlined,
   ];
   static const _selectedIcons = [
     Icons.school,
@@ -42,6 +44,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     Icons.collections_bookmark,
     Icons.query_stats,
     Icons.class_,
+    Icons.account_tree,
   ];
 
   void _showProfileMenu() {
@@ -132,7 +135,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE8DF),
+      backgroundColor: AppColors.cream,
       body: SafeArea(
         child: Column(
           children: [
@@ -166,6 +169,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                 2 => const _CoursesTab(),
                 3 => const _MonitoringTab(),
                 4 => const _KelasTab(),
+                5 => const _JurusanTab(),
                 _ => const SizedBox.shrink(),
               },
             ),
@@ -187,7 +191,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(5, (i) {
+          children: List.generate(6, (i) {
             final active = _selectedTab == i;
             return GestureDetector(
               onTap: () {
@@ -357,6 +361,39 @@ class _UserCard extends StatelessWidget {
   }
 }
 
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.green : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.green : AppColors.muted.withAlpha(80),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : AppColors.body,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ==================== MAHASISWA TAB ====================
 
 class _MahasiswaTab extends ConsumerStatefulWidget {
@@ -367,8 +404,10 @@ class _MahasiswaTab extends ConsumerStatefulWidget {
 
 class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
   List<dynamic> _users = [];
+  List<dynamic> _kelasList = [];
   bool _loading = true;
   String? _error;
+  int? _selectedKelasId;
 
   @override
   void initState() {
@@ -382,29 +421,64 @@ class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
       _error = null;
     });
     try {
-      final all = await ref.read(adminServiceProvider).getUsers();
-      _users = all.where((u) => u['role'] == 'mahasiswa').toList();
+      final results = await Future.wait([
+        ref.read(adminServiceProvider).getUsers(),
+        ref.read(adminServiceProvider).getKelas(),
+      ]);
+      _users = (results[0] as List<dynamic>)
+          .where((u) => u['role'] == 'mahasiswa')
+          .toList();
+      _kelasList = results[1];
     } catch (e) {
       _error = e.toString();
     }
     if (mounted) setState(() => _loading = false);
   }
 
+  List<dynamic> get _filteredUsers {
+    final list = _selectedKelasId == null
+        ? _users
+        : _users.where((u) => u['kelas_id'] == _selectedKelasId).toList();
+    list.sort((a, b) {
+      final aTime = a['last_active_at'] as String? ?? '';
+      final bTime = b['last_active_at'] as String? ?? '';
+      if (aTime.isEmpty && bTime.isEmpty) return 0;
+      if (aTime.isEmpty) return 1;
+      if (bTime.isEmpty) return -1;
+      return bTime.compareTo(aTime);
+    });
+    return list;
+  }
+
+  String _kelasName(int? id) {
+    if (id == null) return 'Tanpa Kelas';
+    try {
+      return _kelasList.firstWhere((k) => k['id'] == id)['name'] as String;
+    } catch (_) {
+      return 'Tanpa Kelas';
+    }
+  }
+
   Future<void> _showAddDialog() async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => const _MahasiswaFormDialog(),
+      builder: (_) => _MahasiswaFormDialog(kelasList: _kelasList),
     );
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).createUser(
-            email: result['email']!,
-            password: result['password']!,
-            fullName: result['fullName']!,
-            role: 'mahasiswa',
-            nim: result['nim']?.isEmpty == true ? null : result['nim'],
-            prodi: result['prodi']?.isEmpty == true ? null : result['prodi'],
-          );
+        email: result['email'] as String,
+        password: result['password'] as String,
+        fullName: result['fullName'] as String,
+        role: 'mahasiswa',
+        nim: (result['nim'] as String?)?.isEmpty == true
+            ? null
+            : result['nim'] as String?,
+        prodi: (result['prodi'] as String?)?.isEmpty == true
+            ? null
+            : result['prodi'] as String?,
+        kelasId: result['kelas_id'] as int?,
+      );
       _load();
     } catch (e) {
       if (mounted) {
@@ -415,16 +489,24 @@ class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
   }
 
   Future<void> _showEditDialog(dynamic u) async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _MahasiswaFormDialog(user: u),
+      builder: (_) => _MahasiswaFormDialog(
+        kelasList: _kelasList,
+        user: u,
+      ),
     );
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).updateUser(u['id'], {
         'full_name': result['fullName'],
-        'nim': result['nim']?.isEmpty == true ? null : result['nim'],
-        'prodi': result['prodi']?.isEmpty == true ? null : result['prodi'],
+        'nim': (result['nim'] as String?)?.isEmpty == true
+            ? null
+            : result['nim'] as String?,
+        'prodi': (result['prodi'] as String?)?.isEmpty == true
+            ? null
+            : result['prodi'] as String?,
+        'kelas_id': result['kelas_id'],
       });
       _load();
     } catch (e) {
@@ -501,15 +583,39 @@ class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
       );
     }
 
+    final filtered = _filteredUsers;
+
     return RefreshIndicator(
       onRefresh: _load,
       color: AppColors.green,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-          _SectionHeader(title: 'Mahasiswa (${_users.length})', onAdd: _showAddDialog),
+          _SectionHeader(title: 'Mahasiswa (${filtered.length})', onAdd: _showAddDialog),
           const SizedBox(height: 12),
-          if (_users.isEmpty)
+          if (_kelasList.isNotEmpty) ...[
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _FilterChip(
+                    label: 'Semua',
+                    selected: _selectedKelasId == null,
+                    onTap: () => setState(() => _selectedKelasId = null),
+                  ),
+                  for (final k in _kelasList)
+                    _FilterChip(
+                      label: k['name'] as String,
+                      selected: _selectedKelasId == k['id'],
+                      onTap: () => setState(() => _selectedKelasId = k['id']),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (filtered.isEmpty)
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -520,7 +626,117 @@ class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
                 child: Text('Belum ada data mahasiswa.', style: TextStyle(color: AppColors.muted)),
               ),
             ),
-          ..._users.map((u) => _UserCard(
+          if (_selectedKelasId != null)
+            ...filtered.map((u) => _UserCard(
+              user: u,
+              onDelete: _deleteUser,
+              onEdit: () => _showEditDialog(u),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentDetailScreen(
+                      studentId: u['id'] as int,
+                    ),
+                  ),
+                );
+              },
+            ))
+          else
+            ..._buildGroupedUsers(filtered),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupedUsers(List<dynamic> users) {
+    final grouped = <int?, List<dynamic>>{};
+    for (final u in users) {
+      final kid = u['kelas_id'] as int?;
+      grouped.putIfAbsent(kid, () => []).add(u);
+    }
+
+    for (final members in grouped.values) {
+      members.sort((a, b) {
+        final aTime = a['last_active_at'] as String? ?? '';
+        final bTime = b['last_active_at'] as String? ?? '';
+        if (aTime.isEmpty && bTime.isEmpty) return 0;
+        if (aTime.isEmpty) return 1;
+        if (bTime.isEmpty) return -1;
+        return bTime.compareTo(aTime);
+      });
+    }
+
+    final kelasIds = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return _kelasName(a).compareTo(_kelasName(b));
+      });
+
+    final widgets = <Widget>[];
+    for (final kid in kelasIds) {
+      final members = grouped[kid]!;
+      widgets.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                offset: const Offset(0, 2),
+                blurRadius: 8,
+                color: Colors.black.withAlpha(15),
+              ),
+            ],
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+              childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              initiallyExpanded: true,
+              title: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.green.withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.class_, size: 18, color: AppColors.green),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    _kelasName(kid),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.green.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${members.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.green,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              children: members
+                  .map((u) => _UserCard(
                 user: u,
                 onDelete: _deleteUser,
                 onEdit: () => _showEditDialog(u),
@@ -534,16 +750,21 @@ class _MahasiswaTabState extends ConsumerState<_MahasiswaTab> {
                     ),
                   );
                 },
-              )),
-        ],
-      ),
-    );
+              ))
+                  .toList(),
+            ),
+          ),
+        ),
+      );
+    }
+    return widgets;
   }
 }
 
 class _MahasiswaFormDialog extends StatefulWidget {
+  final List<dynamic> kelasList;
   final dynamic user;
-  const _MahasiswaFormDialog({this.user});
+  const _MahasiswaFormDialog({required this.kelasList, this.user});
 
   @override
   State<_MahasiswaFormDialog> createState() => _MahasiswaFormDialogState();
@@ -556,6 +777,7 @@ class _MahasiswaFormDialogState extends State<_MahasiswaFormDialog> {
   late final TextEditingController _fullName;
   late final TextEditingController _nim;
   late final TextEditingController _prodi;
+  int? _selectedKelasId;
 
   bool get _isEdit => widget.user != null;
 
@@ -567,6 +789,7 @@ class _MahasiswaFormDialogState extends State<_MahasiswaFormDialog> {
     _fullName = TextEditingController(text: widget.user?['full_name'] ?? '');
     _nim = TextEditingController(text: widget.user?['nim'] ?? '');
     _prodi = TextEditingController(text: widget.user?['prodi'] ?? '');
+    _selectedKelasId = widget.user?['kelas_id'] as int?;
   }
 
   @override
@@ -603,6 +826,37 @@ class _MahasiswaFormDialogState extends State<_MahasiswaFormDialog> {
             _buildField(_nim, 'NIM'),
             const SizedBox(height: 10),
             _buildField(_prodi, 'Program Studi'),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<int>(
+              value: _selectedKelasId,
+              decoration: InputDecoration(
+                labelText: 'Kelas',
+                labelStyle: const TextStyle(color: AppColors.muted),
+                filled: true,
+                fillColor: AppColors.cream2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.green, width: 1.5),
+                ),
+              ),
+              items: [
+                const DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('Tanpa Kelas', style: TextStyle(color: AppColors.muted)),
+                ),
+                ...widget.kelasList.map<DropdownMenuItem<int>>((k) {
+                  return DropdownMenuItem<int>(
+                    value: k['id'] as int,
+                    child: Text(k['name'] as String? ?? ''),
+                  );
+                }),
+              ],
+              onChanged: (v) => setState(() => _selectedKelasId = v),
+            ),
           ]),
         ),
       ),
@@ -619,6 +873,7 @@ class _MahasiswaFormDialogState extends State<_MahasiswaFormDialog> {
                 'fullName': _fullName.text,
                 'nim': _nim.text,
                 'prodi': _prodi.text,
+                'kelas_id': _selectedKelasId,
               });
             }
           },
@@ -674,6 +929,7 @@ class _DosenTab extends ConsumerStatefulWidget {
 
 class _DosenTabState extends ConsumerState<_DosenTab> {
   List<dynamic> _users = [];
+  List<dynamic> _jurusan = [];
   bool _loading = true;
   String? _error;
 
@@ -694,23 +950,29 @@ class _DosenTabState extends ConsumerState<_DosenTab> {
     } catch (e) {
       _error = e.toString();
     }
+    // Jurusan opsional — bila gagal, form tetap bisa dibuat tanpa dropdown.
+    try {
+      final j = await ref.read(adminServiceProvider).getJurusan();
+      if (mounted) _jurusan = j;
+    } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _showAddDialog() async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => const _DosenFormDialog(),
+      builder: (_) => _DosenFormDialog(jurusan: _jurusan),
     );
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).createUser(
-            email: result['email']!,
-            password: result['password']!,
-            fullName: result['fullName']!,
-            role: 'dosen',
-            nip: result['nip']?.isEmpty == true ? null : result['nip'],
-          );
+        email: result['email']!,
+        password: result['password']!,
+        fullName: result['fullName']!,
+        role: 'dosen',
+        nip: result['nip']?.isEmpty == true ? null : result['nip'],
+        jurusanId: result['jurusanId'] as int?,
+      );
       _load();
     } catch (e) {
       if (mounted) {
@@ -721,21 +983,51 @@ class _DosenTabState extends ConsumerState<_DosenTab> {
   }
 
   Future<void> _showEditDialog(dynamic u) async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _DosenFormDialog(user: u),
+      builder: (_) => _DosenFormDialog(user: u, jurusan: _jurusan),
     );
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).updateUser(u['id'], {
         'full_name': result['fullName'],
         'nip': result['nip']?.isEmpty == true ? null : result['nip'],
+        'jurusan_id': result['jurusanId'] as int?,
       });
       _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      }
+    }
+  }
+
+  Future<void> _changeJurusan(dynamic u, int? jurusanId) async {
+    try {
+      final updated = await ref.read(adminServiceProvider).updateUser(u['id'], {
+        'jurusan_id': jurusanId,
+      });
+      if (mounted) {
+        setState(() {
+          final idx = _users.indexWhere((item) => item['id'] == u['id']);
+          if (idx != -1) _users[idx] = updated;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              jurusanId == null
+                  ? 'Jurusan dibersihkan untuk ${u['full_name']}'
+                  : '${u['full_name']} diarahkan ke ${updated['jurusan_name']}',
+            ),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Gagal mengubah jurusan: $e')));
       }
     }
   }
@@ -825,11 +1117,178 @@ class _DosenTabState extends ConsumerState<_DosenTab> {
                 child: Text('Belum ada data dosen.', style: TextStyle(color: AppColors.muted)),
               ),
             ),
-          ..._users.map((u) => _UserCard(
-                user: u,
-                onDelete: _deleteUser,
-                onEdit: () => _showEditDialog(u),
-              )),
+          ..._users.map((u) => _DosenCard(
+            user: u,
+            jurusan: _jurusan,
+            onDelete: _deleteUser,
+            onEdit: () => _showEditDialog(u),
+            onJurusanChanged: (v) => _changeJurusan(u, v),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _DosenCard extends StatelessWidget {
+  final dynamic user;
+  final List<dynamic> jurusan;
+  final Future<void> Function(dynamic) onDelete;
+  final VoidCallback? onEdit;
+  final ValueChanged<int?> onJurusanChanged;
+  const _DosenCard({
+    required this.user,
+    this.jurusan = const [],
+    required this.onDelete,
+    this.onEdit,
+    required this.onJurusanChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final jurusanName = (user['jurusan_name'] as String?) ?? '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            color: Colors.black.withAlpha(15),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: AppColors.sage,
+                child: Text(
+                  ((user['full_name'] as String?) ?? '?')[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user['full_name'] ?? '-',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      user['email'] ?? '',
+                      style: const TextStyle(fontSize: 12, color: AppColors.body),
+                    ),
+                    Text(
+                      user['nip'] ?? '-',
+                      style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              if (onEdit != null)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.green),
+                  onPressed: onEdit,
+                ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red),
+                onPressed: () => onDelete(user),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // ---- FIX OVERFLOW 17px ----
+          // Sebelumnya: Row(icon + label + Spacer + nama jurusan + dropdown)
+          // dipaksa satu baris sehingga saat nama jurusan panjang, total
+          // lebar melebihi Card dan memicu overflow.
+          // Sekarang: dibungkus Wrap agar elemen bisa turun ke baris baru
+          // bila tidak muat, dan nama jurusan diberi Flexible + ellipsis
+          // agar teks panjang terpotong rapi tanpa mengubah logic apapun.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.cream2.withAlpha(80),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.account_tree_outlined,
+                        size: 16, color: AppColors.green),
+                    SizedBox(width: 8),
+                    Text(
+                      'Jurusan pengampu',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+                if (jurusanName.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      jurusanName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
+                  ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<int?>(
+                    value: user['jurusan_id'] as int?,
+                    icon: const Icon(Icons.arrow_drop_down,
+                        color: AppColors.green, size: 22),
+                    isDense: true,
+                    hint: const Text('Pilih jurusan',
+                        style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                    items: [
+                      ...jurusan.map<DropdownMenuItem<int?>>((j) =>
+                          DropdownMenuItem(
+                            value: j['id'] as int,
+                            child: Text(
+                              j['name'] ?? '',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          )),
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('– Belum ditetapkan –',
+                            style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                      ),
+                    ],
+                    onChanged: (v) => onJurusanChanged(v),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -838,7 +1297,8 @@ class _DosenTabState extends ConsumerState<_DosenTab> {
 
 class _DosenFormDialog extends StatefulWidget {
   final dynamic user;
-  const _DosenFormDialog({this.user});
+  final List<dynamic> jurusan;
+  const _DosenFormDialog({this.user, this.jurusan = const []});
 
   @override
   State<_DosenFormDialog> createState() => _DosenFormDialogState();
@@ -850,6 +1310,7 @@ class _DosenFormDialogState extends State<_DosenFormDialog> {
   late final TextEditingController _password;
   late final TextEditingController _fullName;
   late final TextEditingController _nip;
+  int? _jurusanId;
 
   bool get _isEdit => widget.user != null;
 
@@ -860,6 +1321,7 @@ class _DosenFormDialogState extends State<_DosenFormDialog> {
     _password = TextEditingController();
     _fullName = TextEditingController(text: widget.user?['full_name'] ?? '');
     _nip = TextEditingController(text: widget.user?['nip'] ?? '');
+    _jurusanId = widget.user?['jurusan_id'] as int?;
   }
 
   @override
@@ -893,6 +1355,37 @@ class _DosenFormDialogState extends State<_DosenFormDialog> {
             ],
             const SizedBox(height: 10),
             _buildField(_nip, 'NIP'),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<int?>(
+              initialValue: _jurusanId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Jurusan Pengampu',
+                labelStyle: const TextStyle(color: AppColors.muted),
+                filled: true,
+                fillColor: AppColors.cream2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: [
+                ...widget.jurusan.map<DropdownMenuItem<int?>>((j) =>
+                    DropdownMenuItem(
+                      value: j['id'] as int,
+                      child: Text(
+                        j['name'] ?? '',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    )),
+                const DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text('– Belum ditetapkan –',
+                      style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                ),
+              ],
+              onChanged: (v) => setState(() => _jurusanId = v),
+            ),
           ]),
         ),
       ),
@@ -908,6 +1401,7 @@ class _DosenFormDialogState extends State<_DosenFormDialog> {
                 'password': _password.text,
                 'fullName': _fullName.text,
                 'nip': _nip.text,
+                'jurusanId': _jurusanId,
               });
             }
           },
@@ -963,6 +1457,7 @@ class _CoursesTab extends ConsumerStatefulWidget {
 
 class _CoursesTabState extends ConsumerState<_CoursesTab> {
   List<dynamic> _courses = [];
+  List<dynamic> _jurusan = [];
   bool _loading = true;
   String? _error;
 
@@ -979,6 +1474,9 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
     });
     try {
       _courses = await ref.read(adminServiceProvider).getCourses();
+      try {
+        _jurusan = await ref.read(adminServiceProvider).getJurusan();
+      } catch (_) {}
     } catch (e) {
       _error = e.toString();
     }
@@ -993,19 +1491,45 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
   }
 
   Future<void> _showAddDialog() async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, String?>>(
       context: context,
-      builder: (_) => const _CourseFormDialog(),
+      builder: (_) => _CourseFormDialog(jurusan: _jurusan),
     );
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).createCourse(
-            code: result['code']!,
-            name: result['name']!,
-            semester: int.tryParse(result['semester'] ?? '') ?? 1,
-            credits: int.tryParse(result['credits'] ?? '') ?? 3,
-            description: result['description'],
-          );
+        code: result['code']!,
+        name: result['name']!,
+        prodi: result['prodi'],
+        semester: int.tryParse(result['semester'] ?? '') ?? 1,
+        credits: int.tryParse(result['credits'] ?? '') ?? 3,
+        description: result['description'],
+      );
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Gagal: ${_errorMessage(e)}')));
+      }
+    }
+  }
+
+  Future<void> _showEditDialog(dynamic c) async {
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (_) => _CourseFormDialog(initial: c, jurusan: _jurusan),
+    );
+    if (result == null) return;
+    try {
+      await ref.read(adminServiceProvider).updateCourse(
+        c['id'] as int,
+        code: result['code']!,
+        name: result['name']!,
+        prodi: result['prodi'],
+        semester: int.tryParse(result['semester'] ?? '') ?? 1,
+        credits: int.tryParse(result['credits'] ?? '') ?? 3,
+        description: result['description'],
+      );
       _load();
     } catch (e) {
       if (mounted) {
@@ -1137,8 +1661,253 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
                     style: TextStyle(color: AppColors.muted)),
               ),
             ),
-          ..._courses.map(_buildCourseCard),
+          ..._buildCourseSections(),
         ],
+      ),
+    );
+  }
+
+  final Set<String> _expandedJurusan = {};
+  final Set<(String, String)> _expandedProdi = {};
+  final Set<(String, String, int)> _expandedSemester = {};
+
+  /// Map nama prodi -> nama jurusan (untuk pengelompokan mata kuliah).
+  Map<String, String> get _prodiToJurusan {
+    final map = <String, String>{};
+    for (final j in _jurusan) {
+      final jName = (j['name'] as String?) ?? '';
+      for (final p in (j['prodi'] as List<dynamic>? ?? const [])) {
+        final pName = (p['name'] as String?) ?? '';
+        if (pName.isNotEmpty) map[pName] = jName;
+      }
+    }
+    return map;
+  }
+
+  /// Penelusuran berjenjang: Jurusan → Prodi → Semester → Mata Kuliah.
+  /// Tiap level hanya dibuka saat diklik; level turunannya baru muncul
+  /// setelah level di atasnya di-expand.
+  List<Widget> _buildCourseSections() {
+    final prodiToJurusan = _prodiToJurusan;
+    final Map<String, Map<String, Map<int, List<dynamic>>>> tree = {};
+    for (final c in _courses) {
+      final semester = (c['semester'] as num?)?.toInt() ?? 0;
+      final prodi = ((c['prodi'] as String?)?.trim().isNotEmpty == true)
+          ? (c['prodi'] as String).trim()
+          : '';
+      final jurusan = prodiToJurusan[prodi] ?? '';
+      tree.putIfAbsent(jurusan, () => {});
+      tree[jurusan]!.putIfAbsent(prodi, () => {});
+      tree[jurusan]![prodi]!.putIfAbsent(semester, () => []).add(c);
+    }
+
+    final jurusanNames = tree.keys.toList()
+      ..sort((a, b) {
+        if (a.isEmpty) return 1;
+        if (b.isEmpty) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+
+    final widgets = <Widget>[];
+    for (final jurusan in jurusanNames) {
+      final prodiMap = tree[jurusan]!;
+      final jurusanTotal = prodiMap.values.fold<int>(
+        0,
+            (sum, sems) => sems.values.fold<int>(0, (s, items) => s + items.length),
+      );
+      final jurusanExpanded = _expandedJurusan.contains(jurusan);
+      widgets.add(_buildJurusanRow(
+        jurusan,
+        jurusanTotal,
+        jurusanExpanded,
+            () => _toggleJurusan(jurusan),
+      ));
+      if (!jurusanExpanded) continue;
+
+      final prodis = prodiMap.keys.toList()
+        ..sort((a, b) {
+          if (a.isEmpty) return 1;
+          if (b.isEmpty) return -1;
+          return a.toLowerCase().compareTo(b.toLowerCase());
+        });
+      for (final prodi in prodis) {
+        final semesterMap = prodiMap[prodi]!;
+        final prodiTotal = semesterMap.values.fold<int>(0, (s, items) => s + items.length);
+        final prodiExpanded = _expandedProdi.contains((jurusan, prodi));
+        widgets.add(_buildProdiRow(
+          prodi,
+          prodiTotal,
+          prodiExpanded,
+              () => _toggleProdi(jurusan, prodi),
+        ));
+        if (!prodiExpanded) continue;
+
+        for (final semester in semesterMap.keys.toList()..sort()) {
+          final items = semesterMap[semester]!;
+          final smtExpanded = _expandedSemester.contains((jurusan, prodi, semester));
+          widgets.add(_buildSemesterRow(
+            semester,
+            items.length,
+            smtExpanded,
+                () => _toggleSemester(jurusan, prodi, semester),
+          ));
+          if (!smtExpanded) continue;
+          widgets.addAll(items.map(
+                (c) => Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: _buildCourseCard(c),
+            ),
+          ));
+        }
+      }
+    }
+    return widgets;
+  }
+
+  void _toggleJurusan(String name) => setState(() {
+    if (!_expandedJurusan.remove(name)) _expandedJurusan.add(name);
+  });
+
+  void _toggleProdi(String jurusan, String prodi) => setState(() {
+    final key = (jurusan, prodi);
+    if (!_expandedProdi.remove(key)) _expandedProdi.add(key);
+  });
+
+  void _toggleSemester(String jurusan, String prodi, int semester) =>
+      setState(() {
+        final key = (jurusan, prodi, semester);
+        if (!_expandedSemester.remove(key)) _expandedSemester.add(key);
+      });
+
+  Widget _buildJurusanRow(String jurusan, int count, bool expanded, VoidCallback onTap) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            color: Colors.black.withAlpha(15),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(children: [
+            const Icon(Icons.account_tree_outlined, size: 20, color: AppColors.green),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                jurusan.isEmpty ? 'Tanpa Jurusan' : jurusan,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.dark,
+                ),
+              ),
+            ),
+            _countBadge(count),
+            const SizedBox(width: 6),
+            AnimatedRotation(
+              turns: expanded ? 0.25 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: const Icon(Icons.expand_more, size: 22, color: AppColors.muted),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProdiRow(String prodi, int count, bool expanded, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.green.withAlpha(10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(children: [
+          const Icon(Icons.school_outlined, size: 16, color: AppColors.green),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              prodi.isEmpty ? 'Tanpa Prodi' : prodi,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+          _countBadge(count),
+          const SizedBox(width: 6),
+          AnimatedRotation(
+            turns: expanded ? 0.25 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.expand_more, size: 18, color: AppColors.muted),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildSemesterRow(int semester, int count, bool expanded, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 4, 8, 8),
+        child: Row(children: [
+          const Icon(Icons.calendar_month_outlined, size: 15, color: AppColors.muted),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              semester == 0 ? 'Tanpa Semester' : 'Semester $semester',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.body,
+              ),
+            ),
+          ),
+          Text(
+            '$count',
+            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+          ),
+          const SizedBox(width: 6),
+          AnimatedRotation(
+            turns: expanded ? 0.25 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.expand_more, size: 16, color: AppColors.muted),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _countBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.sage.withAlpha(40),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.green,
+        ),
       ),
     );
   }
@@ -1201,6 +1970,10 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.green),
+            onPressed: () => _showEditDialog(c),
+          ),
+          IconButton(
             icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red),
             onPressed: () => _deleteCourse(c),
           ),
@@ -1211,7 +1984,10 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
 }
 
 class _CourseFormDialog extends StatefulWidget {
-  const _CourseFormDialog();
+  const _CourseFormDialog({this.initial, this.jurusan = const []});
+
+  final Map<String, dynamic>? initial;
+  final List<dynamic> jurusan;
 
   @override
   State<_CourseFormDialog> createState() => _CourseFormDialogState();
@@ -1221,6 +1997,7 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _code;
   late final TextEditingController _name;
+  String? _prodiValue;
   late final TextEditingController _semester;
   late final TextEditingController _credits;
   late final TextEditingController _description;
@@ -1228,11 +2005,17 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
   @override
   void initState() {
     super.initState();
-    _code = TextEditingController();
-    _name = TextEditingController();
-    _semester = TextEditingController(text: '1');
-    _credits = TextEditingController(text: '3');
-    _description = TextEditingController();
+    final initial = widget.initial;
+    _code = TextEditingController(text: (initial?['code'] as String?) ?? '');
+    _name = TextEditingController(text: (initial?['name'] as String?) ?? '');
+    final prodi = (initial?['prodi'] as String?)?.trim();
+    _prodiValue = (prodi != null && prodi.isNotEmpty) ? prodi : null;
+    _semester = TextEditingController(
+        text: ((initial?['semester'] as num?)?.toInt() ?? 1).toString());
+    _credits =
+        TextEditingController(text: ((initial?['credits'] as num?)?.toInt() ?? 3).toString());
+    _description =
+        TextEditingController(text: (initial?['description'] as String?) ?? '');
   }
 
   @override
@@ -1247,12 +2030,24 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final prodiItems = <DropdownMenuItem<String>>[
+      for (final j in widget.jurusan)
+        for (final p in (j['prodi'] as List<dynamic>? ?? const []))
+          DropdownMenuItem<String>(
+            value: p['name'] as String,
+            child: Text(
+              '${j['name']} — ${p['name']}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+    ];
+    final hasProdi = prodiItems.any((e) => e.value == _prodiValue);
     return AlertDialog(
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
-        'Tambah Mata Kuliah',
-        style: TextStyle(color: AppColors.dark, fontWeight: FontWeight.w700),
+      title: Text(
+        widget.initial == null ? 'Tambah Mata Kuliah' : 'Edit Mata Kuliah',
+        style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w700),
       ),
       content: Form(
         key: _formKey,
@@ -1261,6 +2056,26 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
             _buildField(_code, 'Kode MK', hint: 'BING101'),
             const SizedBox(height: 10),
             _buildField(_name, 'Nama Mata Kuliah'),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: hasProdi ? _prodiValue : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Program Studi',
+                labelStyle: const TextStyle(color: AppColors.muted),
+                filled: true,
+                fillColor: AppColors.cream2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+              items: prodiItems,
+              hint: const Text('Pilih Program Studi',
+                  style: TextStyle(color: AppColors.muted)),
+              onChanged: (v) => setState(() => _prodiValue = v),
+            ),
             const SizedBox(height: 10),
             _buildField(_semester, 'Semester', number: true),
             const SizedBox(height: 10),
@@ -1280,6 +2095,7 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
               Navigator.pop(context, {
                 'code': _code.text.trim().toUpperCase(),
                 'name': _name.text.trim(),
+                'prodi': _prodiValue,
                 'semester': _semester.text.trim(),
                 'credits': _credits.text.trim(),
                 'description': _description.text.trim(),
@@ -1331,6 +2147,465 @@ class _CourseFormDialogState extends State<_CourseFormDialog> {
       },
     );
   }
+}
+
+// ==================== JURUSAN TAB ====================
+
+class _JurusanTab extends ConsumerStatefulWidget {
+  const _JurusanTab();
+  @override
+  ConsumerState<_JurusanTab> createState() => _JurusanTabState();
+}
+
+class _JurusanTabState extends ConsumerState<_JurusanTab> {
+  List<dynamic> _jurusan = [];
+  final Set<int> _expanded = {};
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      _jurusan = await ref.read(adminServiceProvider).getJurusan();
+    } catch (e) {
+      _error = e.toString();
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  String _errorMessage(Object e) {
+    if (e is DioException && e.response?.data is Map) {
+      return e.response?.data['detail']?.toString() ?? 'Terjadi kesalahan';
+    }
+    return e.toString();
+  }
+
+  void _snack(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  Future<void> _showAddJurusan() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NamePromptDialog(
+        title: 'Tambah Jurusan',
+        label: 'Nama Jurusan',
+        hint: 'Teknologi Informasi',
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await ref.read(adminServiceProvider).createJurusan(name);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  Future<void> _showEditJurusan(dynamic j) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NamePromptDialog(
+        title: 'Edit Jurusan',
+        label: 'Nama Jurusan',
+        initial: j['name'] as String? ?? '',
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await ref.read(adminServiceProvider).updateJurusan(j['id'] as int, name);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  Future<void> _deleteJurusan(dynamic j) async {
+    final ok = await _confirmDelete(
+      context,
+      'Hapus ${j['name']}?',
+      'Jurusan beserta seluruh prodi di dalamnya akan dihapus permanen.',
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(adminServiceProvider).deleteJurusan(j['id'] as int);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  Future<void> _showAddProdi(dynamic j) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NamePromptDialog(
+        title: 'Tambah Prodi',
+        label: 'Nama Prodi',
+        hint: 'S1 Teknik Informatika',
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await ref.read(adminServiceProvider).createProdi(j['id'] as int, name);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  Future<void> _showEditProdi(dynamic p) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NamePromptDialog(
+        title: 'Edit Prodi',
+        label: 'Nama Prodi',
+        initial: p['name'] as String? ?? '',
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await ref.read(adminServiceProvider).updateProdi(p['id'] as int, name);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  Future<void> _deleteProdi(dynamic p) async {
+    final ok = await _confirmDelete(
+      context,
+      'Hapus ${p['name']}?',
+      'Program studi akan dihapus permanen.',
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(adminServiceProvider).deleteProdi(p['id'] as int);
+      _load();
+    } catch (e) {
+      _snack('Gagal: ${_errorMessage(e)}');
+    }
+  }
+
+  void _toggleExpanded(int id) {
+    setState(() {
+      if (!_expanded.add(id)) _expanded.remove(id);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.error_outline, color: AppColors.red, size: 48),
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: AppColors.body)),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _load,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.green,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('Coba Lagi',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ]),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.green,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        children: [
+          _SectionHeader(
+            title: 'Jurusan (${_jurusan.length})',
+            onAdd: _showAddJurusan,
+          ),
+          const SizedBox(height: 12),
+          if (_jurusan.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(
+                child: Text('Belum ada jurusan.',
+                    style: TextStyle(color: AppColors.muted)),
+              ),
+            ),
+          ..._jurusan.map(_buildJurusanCard),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJurusanCard(dynamic j) {
+    final id = j['id'] as int;
+    final prodi = (j['prodi'] as List<dynamic>?) ?? const [];
+    final expanded = _expanded.contains(id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            color: Colors.black.withAlpha(15),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => _toggleExpanded(id),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                const Icon(Icons.account_tree_outlined, size: 20, color: AppColors.green),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    j['name'] as String? ?? '',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.sage.withAlpha(40),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${prodi.length} prodi',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.green,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.green),
+                  onPressed: () => _showEditJurusan(j),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                  onPressed: () => _deleteJurusan(j),
+                ),
+                AnimatedRotation(
+                  turns: expanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.expand_more, size: 20, color: AppColors.muted),
+                ),
+              ]),
+            ),
+          ),
+          if (expanded) ...[
+            const Divider(height: 20),
+            if (prodi.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text('Belum ada program studi.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted)),
+              ),
+            ...prodi.map(
+                  (p) => Row(children: [
+                const Icon(Icons.school_outlined, size: 16, color: AppColors.muted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p['name'] as String? ?? '',
+                    style: const TextStyle(fontSize: 13, color: AppColors.body),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.green),
+                  onPressed: () => _showEditProdi(p),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.red),
+                  onPressed: () => _deleteProdi(p),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => _showAddProdi(j),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.sage),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 14, color: AppColors.green),
+                    SizedBox(width: 4),
+                    Text(
+                      'Tambah Prodi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NamePromptDialog extends StatefulWidget {
+  final String title;
+  final String label;
+  final String hint;
+  final String initial;
+  const _NamePromptDialog({
+    required this.title,
+    required this.label,
+    this.hint = '',
+    this.initial = '',
+  });
+
+  @override
+  State<_NamePromptDialog> createState() => _NamePromptDialogState();
+}
+
+class _NamePromptDialogState extends State<_NamePromptDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        widget.title,
+        style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w700),
+      ),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: widget.label,
+            hintText: widget.hint,
+            labelStyle: const TextStyle(color: AppColors.muted),
+            filled: true,
+            fillColor: AppColors.cream2,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.green, width: 1.5),
+            ),
+          ),
+          validator: (v) =>
+          (v?.trim().isEmpty ?? true) ? 'Wajib diisi' : null,
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: AppColors.muted))),
+        GestureDetector(
+          onTap: _submit,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.green,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text('Simpan',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      Navigator.pop(context, _controller.text.trim());
+    }
+  }
+}
+
+Future<bool?> _confirmDelete(BuildContext context, String title, String message) {
+  return showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        title,
+        style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w700),
+      ),
+      content: Text(message, style: const TextStyle(color: AppColors.body)),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal', style: TextStyle(color: AppColors.muted))),
+        FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus')),
+      ],
+    ),
+  );
 }
 
 // ==================== MODULES TAB ====================
@@ -1772,6 +3047,7 @@ class _MonitoringTabState extends ConsumerState<_MonitoringTab> {
     final usersByRole = (_stats!['users_by_role'] as List?) ?? [];
     final modulesByStatus = (_stats!['modules_by_status'] as List?) ?? [];
     final dailyActivity = (_stats!['daily_activity'] as List?) ?? [];
+    final jurusanStats = (_stats!['jurusan_stats'] as List?) ?? [];
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -1886,6 +3162,17 @@ class _MonitoringTabState extends ConsumerState<_MonitoringTab> {
 
           const SizedBox(height: 24),
           const Text(
+            'Monitoring Jurusan',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark),
+          ),
+          const SizedBox(height: 12),
+          if (jurusanStats.isNotEmpty)
+            ...jurusanStats.map(_buildJurusanMonitoringCard)
+          else
+            _buildEmptyCard('Belum ada data jurusan.'),
+
+          const SizedBox(height: 24),
+          const Text(
             'Modul per Status',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark),
           ),
@@ -1909,9 +3196,9 @@ class _MonitoringTabState extends ConsumerState<_MonitoringTab> {
                 child: BarChart(BarChartData(
                   alignment: BarChartAlignment.spaceAround,
                   maxY: (modulesByStatus
-                              .map((m) => (m['count'] as num).toDouble())
-                              .fold<double>(0, (a, b) => a > b ? a : b) *
-                          1.3)
+                      .map((m) => (m['count'] as num).toDouble())
+                      .fold<double>(0, (a, b) => a > b ? a : b) *
+                      1.3)
                       .clamp(4, double.infinity),
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
@@ -2011,9 +3298,9 @@ class _MonitoringTabState extends ConsumerState<_MonitoringTab> {
                     child: LineChart(LineChartData(
                       minY: 0,
                       maxY: (dailyActivity
-                                  .map((d) => (d['interactions'] as num).toDouble())
-                                  .fold<double>(0, (a, b) => a > b ? a : b) *
-                              1.3)
+                          .map((d) => (d['interactions'] as num).toDouble())
+                          .fold<double>(0, (a, b) => a > b ? a : b) *
+                          1.3)
                           .clamp(4, double.infinity),
                       gridData: const FlGridData(show: false),
                       borderData: FlBorderData(show: false),
@@ -2117,6 +3404,91 @@ class _MonitoringTabState extends ConsumerState<_MonitoringTab> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(child: Text(text, style: const TextStyle(color: AppColors.muted))),
+    );
+  }
+
+  Widget _buildJurusanMonitoringCard(dynamic j) {
+    final avg = (j['avg_score'] as num?)?.toDouble() ?? 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            color: Colors.black.withAlpha(15),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.account_tree_outlined, size: 18, color: AppColors.green),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                j['name'] as String? ?? '',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.dark,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.sage.withAlpha(40),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${j['total_prodi'] ?? 0} prodi',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.green,
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _metricChip(Icons.groups_outlined, 'Mahasiswa', '${j['total_students'] ?? 0}'),
+            _metricChip(Icons.collections_bookmark_outlined, 'Mata Kuliah', '${j['total_courses'] ?? 0}'),
+            _metricChip(Icons.menu_book_outlined, 'Modul', '${j['total_modules'] ?? 0}'),
+            _metricChip(Icons.touch_app_outlined, 'Interaksi', '${j['total_interactions'] ?? 0}'),
+            _metricChip(Icons.star_outline, 'Skor', avg.toStringAsFixed(1)),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricChip(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.cream2,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: AppColors.green),
+        const SizedBox(width: 5),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: AppColors.dark,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+      ]),
     );
   }
 }
@@ -2226,10 +3598,10 @@ class _KelasTabState extends ConsumerState<_KelasTab> {
     if (result == null) return;
     try {
       await ref.read(adminServiceProvider).createKelas(
-            name: result['name'] as String,
-            dosenId: result['dosen_id'] as int?,
-            description: result['description'] as String?,
-          );
+        name: result['name'] as String,
+        dosenId: result['dosen_id'] as int?,
+        description: result['description'] as String?,
+      );
       _load();
     } catch (e) {
       if (mounted) {
@@ -2272,7 +3644,7 @@ class _KelasTabState extends ConsumerState<_KelasTab> {
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Hapus ${k['name']}?',
           style: const TextStyle(
@@ -2325,7 +3697,7 @@ class _KelasTabState extends ConsumerState<_KelasTab> {
             onTap: _load,
             child: Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.green,
                 borderRadius: BorderRadius.circular(20),
@@ -2360,7 +3732,7 @@ class _KelasTabState extends ConsumerState<_KelasTab> {
               onTap: _showAddDialog,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.green,
                   borderRadius: BorderRadius.circular(20),
@@ -2424,10 +3796,10 @@ class _KelasTabState extends ConsumerState<_KelasTab> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFE3F2FD),
+              color: AppColors.green.withAlpha(20),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.class_, color: Color(0xFF1565C0), size: 22),
+            child: const Icon(Icons.class_, color: AppColors.green, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2526,7 +3898,7 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
     return AlertDialog(
       backgroundColor: Colors.white,
       shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
         widget.isEdit ? 'Edit Kelas' : 'Tambah Kelas',
         style: const TextStyle(
@@ -2596,7 +3968,7 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
           },
           child: Container(
             padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.green,
               borderRadius: BorderRadius.circular(20),
@@ -2627,7 +3999,7 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide:
-              const BorderSide(color: AppColors.green, width: 1.5),
+          const BorderSide(color: AppColors.green, width: 1.5),
         ),
       ),
       validator: (v) {

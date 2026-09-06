@@ -88,6 +88,23 @@ class AnswerExplanationOut(ORMBase):
     generated_at: datetime
 
 
+class QuizAttemptDetailOut(ORMBase):
+    attempt_id: int
+    question_id: int
+    pertanyaan: str
+    opsi_a: str
+    opsi_b: str
+    opsi_c: str
+    opsi_d: str
+    jawaban_siswa: str
+    jawaban_benar: str
+    is_correct: bool
+    penjelasan: Optional[str] = None
+    penjelasan_ai: Optional[str] = None
+    tips: Optional[str] = None
+    answered_at: datetime
+
+
 class ChatSendRequest(BaseModel):
     student_id: int
     pesan: str
