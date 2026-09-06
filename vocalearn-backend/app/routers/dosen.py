@@ -1,4 +1,7 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -76,6 +79,20 @@ def list_students(
         scores = _student_scores(db, s.id)
         avg_score = sum(scores) / len(scores) if scores else 0.0
         kelas = db.get(Kelas, s.kelas_id) if s.kelas_id else None
+
+        last_interaction = (
+            db.query(sa_func.max(Interaction.created_at))
+            .filter(Interaction.student_id == s.id)
+            .scalar()
+        )
+        last_quiz = (
+            db.query(sa_func.max(QuizResult.created_at))
+            .filter(QuizResult.student_id == s.id)
+            .scalar()
+        )
+        timestamps = [t for t in [last_interaction, last_quiz] if t is not None]
+        last_active_at = max(timestamps) if timestamps else None
+
         result.append({
             "id": s.id,
             "full_name": s.full_name,
@@ -86,7 +103,73 @@ def list_students(
             "kelas_name": kelas.name if kelas else None,
             "total_interactions": len(interactions),
             "avg_score": round(avg_score, 2),
+            "last_active_at": last_active_at.isoformat() if last_active_at else None,
         })
+
+    result.sort(
+        key=lambda x: x["last_active_at"] or "",
+        reverse=True,
+    )
+    return result
+
+
+@router.get("/leaderboard")
+def dosen_leaderboard(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_dosen_or_admin),
+):
+    """Ranking seluruh mahasiswa milik dosen, dikelompokkan per kelas.
+    Dalam tiap kelompok, diurutkan dari rata-rata skor tertinggi ke terendah.
+    Mahasiswa yang belum punya progres (attempt_count 0) tetap tampil dengan
+    rank None — ditampilkan sebagai "-" oleh aplikasi."""
+    q = db.query(User).filter(User.role == User.MAHASISWA)
+
+    if user.role == User.DOSEN:
+        dosen_kelas_ids = [
+            k.id for k in db.query(Kelas).filter(Kelas.dosen_id == user.id).all()
+        ]
+        if dosen_kelas_ids:
+            q = q.filter(User.kelas_id.in_(dosen_kelas_ids))
+        else:
+            q = q.filter(User.id == -1)
+
+    students = q.all()
+
+    # Kelompokkan berdasarkan kelas (termasuk tanpa kelas).
+    groups: dict = {}
+    for s in students:
+        kelas = db.get(Kelas, s.kelas_id) if s.kelas_id else None
+        key = kelas.id if kelas else -1
+        if key not in groups:
+            groups[key] = {
+                "kelas_id": kelas.id if kelas else None,
+                "kelas_name": kelas.name if kelas else "Tanpa Kelas",
+                "entries": [],
+            }
+        scores = _student_scores(db, s.id)
+        avg = sum(scores) / len(scores) if scores else 0.0
+        groups[key]["entries"].append({
+            "student_id": s.id,
+            "full_name": s.full_name,
+            "nim": s.nim,
+            "average_score": round(avg, 2),
+            "attempt_count": len(scores),
+            "rank": None,  # diisi setelah sort untuk yang punya progres
+        })
+
+    result = []
+    for key in sorted(groups.keys()):
+        group = groups[key]
+        # Yang punya progres diurutkan peringkatnya; yang belum tanpa peringkat.
+        active = [e for e in group["entries"] if e["attempt_count"] > 0]
+        inactive = [e for e in group["entries"] if e["attempt_count"] == 0]
+        active.sort(key=lambda e: e["average_score"], reverse=True)
+        inactive.sort(key=lambda e: (e["full_name"] or "").lower())
+        for i, entry in enumerate(active, start=1):
+            entry["rank"] = i
+        group["entries"] = active + inactive
+        result.append(group)
+
     return result
 
 

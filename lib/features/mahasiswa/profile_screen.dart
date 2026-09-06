@@ -19,11 +19,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     'Manajemen Informatika',
     'Teknik Komputer',
     'Teknik Jaringan',
+    'Teknologi Rekayasa Perangkat Lunak'
   ];
 
   static const _daftarMataKuliah = [
     'Praktik Jaringan Komputer',
     'Praktik Pemrograman Web',
+    'Praktik Mobile'
   ];
 
   String? _selectedProdi;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../data/providers/ai_provider.dart';
 import '../../data/providers/competency_provider.dart';
+import '../../data/providers/refresh_provider.dart';
 import '../../data/repositories/dosen_service.dart';
 import '../../data/models/competency.dart';
 import 'module_detail_screen.dart';
@@ -25,6 +27,9 @@ class _MahasiswaHomeScreenState extends ConsumerState<MahasiswaHomeScreen> {
   Map<String, dynamic>? _diagnostic;
   List<Competency> _diagResults = [];
   bool _loadingDiag = true;
+  List<dynamic> _leaderboard = [];
+  bool _loadingLeaderboard = true;
+  Timer? _timer;
 
   static const _competencyNames = {
     'c1': 'Logika Pemrograman',
@@ -38,10 +43,42 @@ class _MahasiswaHomeScreenState extends ConsumerState<MahasiswaHomeScreen> {
   void initState() {
     super.initState();
     _loadAll();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _silentRefresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _silentRefresh() async {
+    if (!mounted) return;
+    try {
+      final studentId = ref.read(authProvider).user?.id ?? 0;
+      final data = await DosenService().getRecommendation(studentId);
+      if (!mounted) return;
+      setState(() {
+        _recommendation = data;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([_loadRecommendation(), _loadDiagnostic()]);
+    await Future.wait([_loadRecommendation(), _loadDiagnostic(), _loadLeaderboard()]);
+  }
+
+  Future<void> _loadLeaderboard() async {
+    try {
+      final data = await DosenService().getLeaderboard();
+      if (!mounted) return;
+      setState(() {
+        _leaderboard = data;
+        _loadingLeaderboard = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingLeaderboard = false);
+    }
   }
 
   Future<void> _loadRecommendation() async {
@@ -104,6 +141,9 @@ class _MahasiswaHomeScreenState extends ConsumerState<MahasiswaHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(homeRefreshProvider, (prev, next) {
+      if (next > 0) _silentRefresh();
+    });
     final user = ref.watch(authProvider).user;
     final competencies = ref.watch(competencyProvider);
     final initial = (user?.name ?? 'U')[0].toUpperCase();
@@ -420,6 +460,32 @@ class _MahasiswaHomeScreenState extends ConsumerState<MahasiswaHomeScreen> {
                     ],
                   ),
                 ),
+
+              const SizedBox(height: 18),
+
+              // Papan Peringkat (sekelas)
+              const Text(
+                'Papan Peringkat',
+                style: TextStyle(
+                  color: Color(0xFF33472F),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Peringkat kamu di kelas ${user?.kelasName ?? 'ini'}',
+                style: const TextStyle(
+                  color: AppColors.body,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _LeaderboardCard(
+                entries: _leaderboard,
+                loading: _loadingLeaderboard,
+                currentStudentId: user?.id ?? 0,
+              ),
             ],
           ),
         ),
@@ -503,6 +569,170 @@ class _SkillCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LeaderboardCard extends StatelessWidget {
+  final List<dynamic> entries;
+  final bool loading;
+  final int currentStudentId;
+  const _LeaderboardCard({
+    required this.entries,
+    required this.loading,
+    required this.currentStudentId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const _LeaderboardEmpty(message: 'Memuat papan peringkat…');
+    }
+    if (entries.isEmpty) {
+      return const _LeaderboardEmpty(
+        message: 'Belum ada peserta. Kerjakan modul untuk masuk peringkat.',
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: entries.map((e) {
+          final rank = e['rank'] as int?;
+          final isCurrent = e['student_id'] == currentStudentId;
+          return _LeaderboardRow(entry: e, rank: rank, isCurrent: isCurrent);
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  final dynamic entry;
+  final int? rank;
+  final bool isCurrent;
+  const _LeaderboardRow({
+    required this.entry,
+    required this.rank,
+    required this.isCurrent,
+  });
+
+  String _medal(int? rank) {
+    if (rank == null) return '-';
+    return switch (rank) {
+      1 => '🥇',
+      2 => '🥈',
+      3 => '🥉',
+      _ => '$rank',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = entry['full_name'] as String? ?? 'Mahasiswa';
+    final aver = (entry['average_score'] as num?)?.toDouble() ?? 0.0;
+    final attempts = entry['attempt_count'] as int? ?? 0;
+    final kelasName = entry['kelas_name'] as String?;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isCurrent ? AppColors.green : AppColors.cream,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              _medal(rank),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isCurrent ? Colors.white : AppColors.gold,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isCurrent ? Colors.white : AppColors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (kelasName != null && kelasName.isNotEmpty)
+                  Text(
+                    kelasName,
+                    style: TextStyle(
+                      color: isCurrent ? Colors.white.withAlpha(204) : AppColors.muted,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                aver.toStringAsFixed(1),
+                style: TextStyle(
+                  color: isCurrent ? Colors.white : AppColors.greenDark,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '$attempts latihan',
+                style: TextStyle(
+                  color: isCurrent ? Colors.white.withAlpha(204) : AppColors.muted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeaderboardEmpty extends StatelessWidget {
+  final String message;
+  const _LeaderboardEmpty({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: Colors.white.withAlpha(204),
+          fontSize: 12,
+        ),
       ),
     );
   }

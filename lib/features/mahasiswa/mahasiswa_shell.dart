@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/providers/auth_provider.dart';
+import '../../data/providers/refresh_provider.dart';
 import '../auth/change_password_dialog.dart';
 import 'mahasiswa_home_screen.dart';
 import 'module_list_screen.dart';
@@ -36,7 +37,7 @@ class _MahasiswaShellState extends ConsumerState<MahasiswaShell> {
     Icons.person,
   ];
 
-  final _pages = const [
+  static const _pages = [
     MahasiswaHomeScreen(),
     ModuleListScreen(),
     NilaiScreen(),
@@ -108,13 +109,14 @@ class _MahasiswaShellState extends ConsumerState<MahasiswaShell> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (user?.kelasName != null)
+                      // --- Prodi ditampilkan lebih dulu ---
+                      if (user?.prodi != null)
                         Row(
                           children: [
-                            const Icon(Icons.class_, size: 16, color: AppColors.green),
+                            const Icon(Icons.school_outlined, size: 16, color: AppColors.green),
                             const SizedBox(width: 8),
                             Text(
-                              'Kelas: ${user!.kelasName}',
+                              'Prodi: ${user!.prodi}',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -125,13 +127,14 @@ class _MahasiswaShellState extends ConsumerState<MahasiswaShell> {
                         ),
                       if (user?.kelasName != null && user?.prodi != null)
                         const SizedBox(height: 6),
-                      if (user?.prodi != null)
+                      // --- Kelas ditampilkan di bawah Prodi ---
+                      if (user?.kelasName != null)
                         Row(
                           children: [
-                            const Icon(Icons.school_outlined, size: 16, color: AppColors.green),
+                            const Icon(Icons.class_, size: 16, color: AppColors.green),
                             const SizedBox(width: 8),
                             Text(
-                              'Prodi: ${user!.prodi}',
+                              'Kelas: ${user!.kelasName}',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -206,6 +209,9 @@ class _MahasiswaShellState extends ConsumerState<MahasiswaShell> {
                   _showProfileMenu();
                 } else if (_currentIndex != i) {
                   setState(() => _currentIndex = i);
+                  if (i == 0) {
+                    ref.read(homeRefreshProvider.notifier).state++;
+                  }
                 }
               },
               behavior: HitTestBehavior.opaque,

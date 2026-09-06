@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_dosen_or_admin, require_super_admin
-from app.models import Course, User
+from app.models import Course, Prodi, User
 from app.schemas import CourseCreate, CourseOut, CourseUpdate
 from app.services.course_service import (
     create_course,
@@ -36,7 +36,19 @@ def list_courses(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return db.query(Course).order_by(Course.code).all()
+    q = db.query(Course)
+    # Dosen hanya melihat mata kuliah dari jurusan yang ia ampu.
+    if user.role == User.DOSEN:
+        if user.jurusan_id is None:
+            return []
+        prodi_names = [
+            p.name
+            for p in db.query(Prodi).filter(Prodi.jurusan_id == user.jurusan_id).all()
+        ]
+        if not prodi_names:
+            return []
+        q = q.filter(Course.prodi.in_(prodi_names))
+    return q.order_by(Course.code).all()
 
 
 @router.get("/{course_id}", response_model=CourseOut)

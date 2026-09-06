@@ -32,7 +32,16 @@ def list_kelas(
     db: Session = Depends(get_db),
     user: User = Depends(require_dosen_or_admin),
 ):
-    kelas_list = db.query(Kelas).order_by(Kelas.name).all()
+    # Dosen hanya melihat kelas yang ia ajar (untuk dropdown saat upload).
+    if user.role == User.DOSEN:
+        kelas_list = (
+            db.query(Kelas)
+            .filter(Kelas.dosen_id == user.id)
+            .order_by(Kelas.name)
+            .all()
+        )
+    else:
+        kelas_list = db.query(Kelas).order_by(Kelas.name).all()
     return [_kelas_out(k) for k in kelas_list]
 
 

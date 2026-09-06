@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/providers/ai_provider.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../data/repositories/dosen_service.dart';
+import 'diagnostic_screen.dart';
 import 'module_detail_screen.dart';
 
 class ModuleListScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class _ModuleListScreenState extends ConsumerState<ModuleListScreen> {
   Map<int, double> _masteryByModule = {};
   int? _recommendedModuleId;
   bool _recFailed = false;
+  bool _sudahDiagnostik = false;
 
   /// Selaras MASTERY_THRESHOLD di backend (app/ai/scheduler.py).
   static const double _kMasteryThreshold = 0.8;
@@ -41,19 +44,25 @@ class _ModuleListScreenState extends ConsumerState<ModuleListScreen> {
       final mastery = <int, double>{};
       int? recommendedId;
       var failed = false;
+      var sudahDiag = false;
       try {
         final studentId = ref.read(authProvider).user?.id ?? 0;
-        final rec = await DosenService().getRecommendation(studentId);
-        for (final c in (rec['competencies'] as List<dynamic>? ?? [])) {
-          final mid = c['module_id'];
-          if (mid != null) {
-            mastery[(mid as num).toInt()] =
-                ((c['mastery'] ?? 0) as num).toDouble();
+        final diag = await ref.read(aiServiceProvider).getDiagnostic(studentId: studentId);
+        sudahDiag = diag != null;
+
+        if (sudahDiag) {
+          final rec = await DosenService().getRecommendation(studentId);
+          for (final c in (rec['competencies'] as List<dynamic>? ?? [])) {
+            final mid = c['module_id'];
+            if (mid != null) {
+              mastery[(mid as num).toInt()] =
+                  ((c['mastery'] ?? 0) as num).toDouble();
+            }
           }
-        }
-        final nm = rec['next_module'];
-        if (nm is Map && nm['id'] != null) {
-          recommendedId = (nm['id'] as num).toInt();
+          final nm = rec['next_module'];
+          if (nm is Map && nm['id'] != null) {
+            recommendedId = (nm['id'] as num).toInt();
+          }
         }
       } catch (_) {
         failed = true;
@@ -66,6 +75,7 @@ class _ModuleListScreenState extends ConsumerState<ModuleListScreen> {
         _masteryByModule = mastery;
         _recommendedModuleId = recommendedId;
         _recFailed = failed;
+        _sudahDiagnostik = sudahDiag;
         _isLoading = false;
       });
     } catch (_) {
@@ -129,6 +139,55 @@ class _ModuleListScreenState extends ConsumerState<ModuleListScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
+        if (!_sudahDiagnostik)
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DiagnosticScreen()),
+              ).then((_) => _load());
+            },
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.dark,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.assignment_outlined, color: Color(0xFFBEB069), size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Isi diagnostik terlebih dahulu',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Semua modul terkunci. Kerjakan diagnostik awal untuk membuka akses modul.',
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(180),
+                            fontSize: 11,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
+                ],
+              ),
+            ),
+          ),
         if (_recFailed)
           const Padding(
             padding: EdgeInsets.only(bottom: 12),
@@ -164,6 +223,28 @@ class _ModuleListScreenState extends ConsumerState<ModuleListScreen> {
       if (byOrder != 0) return byOrder;
       return (a['id'] as num).toInt().compareTo((b['id'] as num).toInt());
     });
+
+    // Semua modul terkunci jika diagnostik belum diisi.
+    if (!_sudahDiagnostik) {
+      return [
+        for (final m in mods)
+          _ModuleCard(
+            module: m,
+            state: _ModState.locked,
+            mastery: null,
+            isEnginePick: false,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Isi diagnostik terlebih dahulu untuk membuka modul.',
+                  ),
+                ),
+              );
+            },
+          ),
+      ];
+    }
 
     final activeIdx = mods
         .indexWhere((m) => (_masteryByModule[m['id']] ?? 0) < _kMasteryThreshold);

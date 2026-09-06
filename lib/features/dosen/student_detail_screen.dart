@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../data/repositories/ai_service.dart';
 import '../../data/repositories/dosen_service.dart';
 
@@ -12,10 +13,6 @@ class StudentDetailScreen extends StatefulWidget {
 }
 
 class _StudentDetailScreenState extends State<StudentDetailScreen> {
-  static const cream = Color(0xFFEFE8DF);
-  static const navy = Color(0xFF0F414A);
-  static const blue = Color(0xFF96C0CE);
-
   Map<String, dynamic>? _data;
   List<dynamic> _quizResults = [];
   bool _isLoading = true;
@@ -111,7 +108,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: navy,
+                    color: AppColors.dark,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -147,7 +144,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: AppColors.cream,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _data == null
@@ -181,7 +178,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   child: const Icon(
                     Icons.arrow_back_ios_new,
                     size: 18,
-                    color: navy,
+                    color: AppColors.dark,
                   ),
                 ),
               ),
@@ -189,7 +186,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               const Text(
                 'Detail Mahasiswa',
                 style: TextStyle(
-                  color: navy,
+                  color: AppColors.dark,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                 ),
@@ -203,15 +200,15 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: navy,
+              color: AppColors.dark,
               borderRadius: BorderRadius.circular(25),
             ),
             child: Column(
               children: [
                 const CircleAvatar(
                   radius: 38,
-                  backgroundColor: blue,
-                  child: Icon(Icons.person, size: 45, color: navy),
+                  backgroundColor: AppColors.sage,
+                  child: Icon(Icons.person, size: 45, color: AppColors.dark),
                 ),
                 const SizedBox(height: 15),
                 Text(
@@ -259,7 +256,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 const Text(
                   'Kompetensi Saat Ini',
                   style: TextStyle(
-                    color: navy,
+                    color: AppColors.dark,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -270,7 +267,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     style: const TextStyle(
                       fontSize: 45,
                       fontWeight: FontWeight.w900,
-                      color: navy,
+                      color: AppColors.dark,
                     ),
                   ),
                 ),
@@ -322,7 +319,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           const Text(
             'Riwayat Nilai Kuis',
             style: TextStyle(
-              color: navy,
+              color: AppColors.dark,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),

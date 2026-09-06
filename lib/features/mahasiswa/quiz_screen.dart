@@ -157,6 +157,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
   }
 
   void _finishQuiz() {
+    if (_finished) return;
     if (_skor < _masteryThreshold) {
       _rangkumanFuture = _loadRangkuman();
     }
@@ -415,7 +416,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
               ),
             ),
           ],
-          if (_answered) ...[
+          if (_answered && !_finished) ...[
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _nextQuestion,

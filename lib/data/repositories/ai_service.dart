@@ -99,6 +99,15 @@ class AiService {
     return resp.data as List<dynamic>;
   }
 
+  /// Riwayat jawaban per soal untuk satu materi kuis.
+  Future<List<dynamic>> getQuizAttempts({
+    required int studentId,
+    required int materialId,
+  }) async {
+    final resp = await _dio.get('/ai/quiz-attempts/$studentId/$materialId');
+    return resp.data as List<dynamic>;
+  }
+
   Future<Map<String, dynamic>> chatTutor({
     required int studentId,
     required String pesan,

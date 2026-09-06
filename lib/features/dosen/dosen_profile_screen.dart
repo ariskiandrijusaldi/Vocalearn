@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_colors.dart';
+
 class DosenProfileScreen extends ConsumerStatefulWidget {
   const DosenProfileScreen({super.key});
 
@@ -17,15 +19,6 @@ class _DosenProfileScreenState
   final _namaController = TextEditingController();
   final _mataKuliahController = TextEditingController();
   final _kelasController = TextEditingController();
-
-  // =========================
-  // VocaLearn Color Palette
-  // =========================
-  static const Color navy = Color(0xFF0F414A);
-  static const Color cream = Color(0xFFEFE8DF);
-  static const Color beige = Color(0xFFDBA98A);
-  static const Color blue = Color(0xFF96C0CE);
-  static const Color maroon = Color(0xFF7F0303);
 
   @override
   void dispose() {
@@ -48,7 +41,7 @@ class _DosenProfileScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: AppColors.cream,
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -74,7 +67,7 @@ class _DosenProfileScreenState
                       child: const Icon(
                         Icons.arrow_back_ios_new_rounded,
                         size: 18,
-                        color: navy,
+                        color: AppColors.dark,
                       ),
                     ),
 
@@ -86,7 +79,7 @@ class _DosenProfileScreenState
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: navy,
+                        color: AppColors.dark,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -113,12 +106,12 @@ class _DosenProfileScreenState
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: beige,
+                        color: AppColors.gold,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Icon(
                         Icons.auto_awesome_rounded,
-                        color: navy,
+                        color: AppColors.dark,
                         size: 25,
                       ),
                     ),
@@ -132,7 +125,7 @@ class _DosenProfileScreenState
                         Text(
                           'VocaLearn',
                           style: TextStyle(
-                            color: navy,
+                            color: AppColors.dark,
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                           ),
@@ -157,7 +150,7 @@ class _DosenProfileScreenState
                 const Text(
                   'Lengkapi Profil Dosen 👋',
                   style: TextStyle(
-                    color: navy,
+                    color: AppColors.dark,
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                     height: 1.15,
@@ -207,13 +200,13 @@ class _DosenProfileScreenState
                               width: 82,
                               height: 82,
                               decoration: BoxDecoration(
-                                color: blue.withOpacity(0.35),
+                                color: AppColors.sage.withOpacity(0.35),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
                                 Icons.person_rounded,
                                 size: 45,
-                                color: navy,
+                                color: AppColors.dark,
                               ),
                             ),
 
@@ -224,7 +217,7 @@ class _DosenProfileScreenState
                                 width: 27,
                                 height: 27,
                                 decoration: BoxDecoration(
-                                  color: beige,
+                                  color: AppColors.gold,
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: Colors.white,
@@ -234,7 +227,7 @@ class _DosenProfileScreenState
                                 child: const Icon(
                                   Icons.edit_rounded,
                                   size: 13,
-                                  color: navy,
+                                  color: AppColors.dark,
                                 ),
                               ),
                             ),
@@ -329,7 +322,7 @@ class _DosenProfileScreenState
                         child: ElevatedButton(
                           onPressed: _simpanProfil,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
+                            backgroundColor: AppColors.dark,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -369,7 +362,7 @@ class _DosenProfileScreenState
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: blue.withOpacity(0.25),
+                    color: AppColors.sage.withOpacity(0.25),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Row(
@@ -378,7 +371,7 @@ class _DosenProfileScreenState
                     children: [
                       Icon(
                         Icons.info_outline_rounded,
-                        color: navy,
+                        color: AppColors.dark,
                         size: 20,
                       ),
                       SizedBox(width: 10),
@@ -386,7 +379,7 @@ class _DosenProfileScreenState
                         child: Text(
                           'Data ini digunakan untuk menyesuaikan dashboard dan pemantauan kompetensi mahasiswa.',
                           style: TextStyle(
-                            color: navy,
+                            color: AppColors.dark,
                             fontSize: 11,
                             height: 1.4,
                           ),
@@ -415,13 +408,13 @@ class _DosenProfileScreenState
         Icon(
           icon,
           size: 16,
-          color: navy,
+          color: AppColors.dark,
         ),
         const SizedBox(width: 7),
         Text(
           text,
           style: const TextStyle(
-            color: navy,
+            color: AppColors.dark,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -443,7 +436,7 @@ class _DosenProfileScreenState
       controller: controller,
       validator: validator,
       style: const TextStyle(
-        color: navy,
+        color: AppColors.dark,
         fontSize: 13,
       ),
       decoration: InputDecoration(
@@ -454,11 +447,11 @@ class _DosenProfileScreenState
         ),
         prefixIcon: Icon(
           icon,
-          color: navy,
+          color: AppColors.dark,
           size: 20,
         ),
         filled: true,
-        fillColor: cream.withOpacity(0.55),
+        fillColor: AppColors.cream.withOpacity(0.55),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
@@ -474,14 +467,14 @@ class _DosenProfileScreenState
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(
-            color: blue,
+            color: AppColors.sage,
             width: 2,
           ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(
-            color: maroon,
+            color: AppColors.red,
             width: 1,
           ),
         ),

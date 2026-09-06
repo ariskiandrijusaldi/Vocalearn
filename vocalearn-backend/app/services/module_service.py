@@ -27,9 +27,11 @@ def create_module(db: Session, req: ModuleCreate, created_by: int) -> Module:
         order_index=req.order_index,
         youtube_url=req.youtube_url,
         kelas_id=req.kelas_id,
+        # Langsung terbit tanpa persetujuan — dosen dapat mengunggah modul
+        # dan mahasiswa langsung bisa melihatnya.
         status=ModuleStatus.PUBLISHED,
-        published_at=datetime.now(),
         created_by=created_by,
+        published_at=datetime.now(),
     )
     db.add(mod)
     db.commit()
@@ -37,16 +39,24 @@ def create_module(db: Session, req: ModuleCreate, created_by: int) -> Module:
     return mod
 
 
-def update_module(db: Session, module_id: int, req: ModuleUpdate) -> Module:
+def update_module(db: Session, module_id: int, req: ModuleUpdate, user: User | None = None) -> Module:
     mod = get_module_or_404(db, module_id)
-    if mod.status == ModuleStatus.PUBLISHED:
-        raise HTTPException(status_code=400, detail="Modul terbit tidak bisa diedit")
+    if user and mod.created_by != user.id and user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Hanya pembuat modul yang bisa mengedit")
 
     for field, value in req.model_dump(exclude_unset=True).items():
         setattr(mod, field, value)
     db.commit()
     db.refresh(mod)
     return mod
+
+
+def delete_module(db: Session, module_id: int, user: User | None = None) -> None:
+    mod = get_module_or_404(db, module_id)
+    if user and mod.created_by != user.id and user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Hanya pembuat modul yang bisa menghapus")
+    db.delete(mod)
+    db.commit()
 
 
 def submit_for_review(db: Session, module_id: int) -> Module:

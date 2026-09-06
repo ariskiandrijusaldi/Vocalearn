@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import admin, auth, course, dosen, gemini, interaction, kelas, module, recommendation
+from app.routers import admin, auth, course, dosen, gemini, interaction, jurusan, kelas, leaderboard, module, recommendation
 
 
 @asynccontextmanager
@@ -36,11 +36,13 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(course.router)
 app.include_router(kelas.router)
+app.include_router(jurusan.router)
 app.include_router(module.router)
 app.include_router(interaction.router)
 app.include_router(recommendation.router)
 app.include_router(gemini.router)
 app.include_router(dosen.router)
+app.include_router(leaderboard.router)
 
 _UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "modules")
 os.makedirs(_UPLOAD_DIR, exist_ok=True)

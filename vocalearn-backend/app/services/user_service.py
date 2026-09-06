@@ -3,7 +3,7 @@ from sqlalchemy import text
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models import User, UserRole
+from app.models import Jurusan, User, UserRole
 from app.schemas import UserUpdate
 from app.security import hash_password
 
@@ -26,11 +26,14 @@ def create_user(
     nip: str | None = None,
     prodi: str | None = None,
     kelas_id: int | None = None,
+    jurusan_id: int | None = None,
 ) -> User:
     if role not in UserRole.ALL:
         raise HTTPException(status_code=400, detail="Role tidak dikenal")
     if db.query(User).filter(User.email == email.lower()).first():
         raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    if jurusan_id is not None and db.get(Jurusan, jurusan_id) is None:
+        raise HTTPException(status_code=400, detail="Jurusan tidak ditemukan")
 
     user = User(
         email=email.lower(),
@@ -41,6 +44,7 @@ def create_user(
         nip=nip,
         prodi=prodi,
         kelas_id=kelas_id,
+        jurusan_id=jurusan_id,
     )
     db.add(user)
     db.commit()
@@ -51,6 +55,9 @@ def create_user(
 def update_user(db: Session, user_id: int, req: UserUpdate) -> User:
     user = get_user_or_404(db, user_id)
     data = req.model_dump(exclude_unset=True)
+    if "jurusan_id" in data and data["jurusan_id"] is not None:
+        if db.get(Jurusan, data["jurusan_id"]) is None:
+            raise HTTPException(status_code=400, detail="Jurusan tidak ditemukan")
     if "password" in data and data["password"]:
         data["password_hash"] = hash_password(data.pop("password"))
     data.pop("password", None)

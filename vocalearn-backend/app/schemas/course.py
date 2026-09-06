@@ -9,6 +9,7 @@ from app.schemas.common import ORMBase
 class CourseBase(BaseModel):
     code: str
     name: str
+    prodi: Optional[str] = None
     semester: int = 1
     credits: int = 3
     skkni_unit: Optional[str] = None
@@ -24,6 +25,7 @@ class CourseCreate(CourseBase):
 class CourseUpdate(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
+    prodi: Optional[str] = None
     semester: Optional[int] = None
     credits: Optional[int] = None
     skkni_unit: Optional[str] = None

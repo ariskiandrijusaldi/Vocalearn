@@ -14,9 +14,11 @@ from app.models import (
     Course,
     Enrollment,
     Interaction,
+    Jurusan,
     Kelas,
     Module,
     ModuleStatus,
+    Prodi,
     User,
 )
 from app.models.answer_explanation import AnswerExplanation
@@ -29,10 +31,35 @@ from app.security import hash_password
 
 MASTER_PASSWORD = "admin123"
 
+# Jurusan beserta program studi (prodi) yang berada di dalamnya.
+JURUSANS = [
+    {
+        "name": "Teknologi Informasi",
+        "prodi": [
+            "S1 Teknik Informatika",
+            "S1 Sistem Informasi",
+"Manajemen Informatika",
+        ],
+    },
+    {
+        "name": "Akuntansi",
+        "prodi": ["S1 Akuntansi", "D3 Akuntansi"],
+    },
+    {
+        "name": "Teknik Sipil",
+        "prodi": ["S1 Teknik Sipil"],
+    },
+    {
+        "name": "Teknik Mesin",
+        "prodi": ["S1 Teknik Mesin", "D3 Teknik Mesin"],
+    },
+]
+
 COURSES = [
     {
         "code": "BING101",
         "name": "Bahasa Inggris Dasar",
+        "prodi": "S1 Teknik Informatika",
         "semester": 1,
         "credits": 3,
         "skkni_unit": "Komunikasi Efektif dalam Bahasa Asing",
@@ -43,6 +70,7 @@ COURSES = [
     {
         "code": "BJEP102",
         "name": "Bahasa Jepang Percakapan",
+        "prodi": "Manajemen Informatika",
         "semester": 2,
         "credits": 2,
         "skkni_unit": "Interaksi Lisan Dasar (listening & speaking)",
@@ -53,6 +81,7 @@ COURSES = [
     {
         "code": "BMAN103",
         "name": "Bahasa Mandarin Bisnis",
+        "prodi": "S1 Akuntansi",
         "semester": 3,
         "credits": 3,
         "skkni_unit": "Menyusun Korespondensi Bisnis",
@@ -63,6 +92,7 @@ COURSES = [
     {
         "code": "PKOR104",
         "name": "Public Speaking",
+        "prodi": "D3 Akuntansi",
         "semester": 2,
         "credits": 2,
         "skkni_unit": "Presentasi dalam Bahasa Asing",
@@ -73,6 +103,7 @@ COURSES = [
     {
         "code": "BKOR105",
         "name": "Bahasa Korea Pariwisata",
+        "prodi": "S1 Teknik Mesin",
         "semester": 4,
         "credits": 3,
         "skkni_unit": "Persiapan Sertifikasi Profesi Bahasa",
@@ -136,6 +167,10 @@ INTERACTIONS = {
 def _get_user(db, nim: str, full_name: str, prodi: str, index: int) -> User:
     user = db.query(User).filter(User.nim == nim).first()
     if user:
+        # Upsert agar kolom prodi ikut sinkron dengan jurusan terbaru.
+        if user.prodi != prodi:
+            user.prodi = prodi
+            db.flush()
         return user
     user = User(
         email=f"mahasiswa{index}@vocalearn.id",
@@ -204,11 +239,11 @@ def seed():
 
         # 4) Mahasiswa
         mahasiswa = [
-            ("240001", "Rina Kartika", "S1 Bahasa Inggris", "TI-2A"),
-            ("240002", "Dimas Anggara", "S1 Pariwisata", "TI-2A"),
-            ("240003", "Sinta Permata", "S1 Manajemen Bisnis", "TI-2B"),
-            ("240004", "Budi Santoso", "S1 Hospitality", "TI-2B"),
-            ("240005", "Alya Rahma", "S1 Bahasa Inggris", "TI-2A"),
+            ("240001", "Rina Kartika", "S1 Teknik Informatika", "TI-2A"),
+            ("240002", "Dimas Anggara", "S1 Sistem Informasi", "TI-2A"),
+            ("240003", "Sinta Permata", "Manajemen Informatika", "TI-2B"),
+            ("240004", "Budi Santoso", "S1 Teknik Sipil", "TI-2B"),
+            ("240005", "Alya Rahma", "S1 Akuntansi", "TI-2A"),
         ]
         students = {}
         for i, (nim, name, prodi, kelas_name) in enumerate(mahasiswa, start=1):
@@ -218,7 +253,27 @@ def seed():
                 db.flush()
             students[nim] = s
 
-        # 4) Mata kuliah
+        # 4) Jurusan & prodi
+        for j in JURUSANS:
+            jurusan = db.query(Jurusan).filter(Jurusan.name == j["name"]).first()
+            if not jurusan:
+                jurusan = Jurusan(name=j["name"])
+                db.add(jurusan)
+                db.flush()
+            for prodi_name in j["prodi"]:
+                prodi = db.query(Prodi).filter(Prodi.name == prodi_name).first()
+                if not prodi:
+                    db.add(Prodi(name=prodi_name, jurusan_id=jurusan.id))
+
+        # 4a) Jurusan untuk dosen — keduanya mengampu kelas TI.
+        #     Dosen hanya melihat MK dari jurusannya saat mengunggah modul.
+        ti_jurusan = db.query(Jurusan).filter(Jurusan.name == "Teknologi Informasi").first()
+        if ti_jurusan:
+            for d in db.query(User).filter(User.role == User.DOSEN).all():
+                if d.jurusan_id != ti_jurusan.id:
+                    d.jurusan_id = ti_jurusan.id
+
+        # 5) Mata kuliah
         course_map = {}
         for c in COURSES:
             course = db.query(Course).filter(Course.code == c["code"]).first()
@@ -226,9 +281,13 @@ def seed():
                 course = Course(**c)
                 db.add(course)
                 db.flush()
+            else:
+                # Upsert agar kolom baru (mis. prodi) ikut terisi pada DB lama.
+                for field, value in c.items():
+                    setattr(course, field, value)
             course_map[c["code"]] = course
 
-        # 5) Modul
+        # 6) Modul
         module_by_title = {}
         for code, title, difficulty, status, order, kelas_name in MODULES:
             course = course_map[code]
@@ -280,7 +339,7 @@ def seed():
                         )
                     )
 
-        # 7) Interaksi / skor latihan
+        # 8) Interaksi / skor latihan
         for nim, records in INTERACTIONS.items():
             student = students[nim]
             for title, score, correct, total in records:

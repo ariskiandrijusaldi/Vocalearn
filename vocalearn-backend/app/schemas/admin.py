@@ -17,6 +17,17 @@ class DailyActivity(BaseModel):
     avg_score: float
 
 
+class JurusanStat(BaseModel):
+    id: int
+    name: str
+    total_prodi: int
+    total_students: int
+    total_courses: int
+    total_modules: int
+    total_interactions: int
+    avg_score: float
+
+
 class AdminStats(BaseModel):
     total_users: int
     users_by_role: list[RoleCount]
@@ -26,3 +37,4 @@ class AdminStats(BaseModel):
     total_interactions: int
     avg_score: float
     daily_activity: list[DailyActivity]
+    jurusan_stats: list[JurusanStat]
