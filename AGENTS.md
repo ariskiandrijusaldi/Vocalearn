@@ -53,7 +53,7 @@ flutter test             # 4 widget tests in 3 files; admin tests inject fake se
 flutter run              # needs emulator/device
 ```
 
-**API base URL:** `lib/core/config/app_config.dart` — Android default is a **hardcoded machine-specific LAN IP** (`_androidBaseUrl`, currently `http://192.168.1.12:8000` — update it to your machine's IP, or pass `--dart-define=API_BASE_URL=...`). Other platforms use `localhost:8000`. Backend must listen on `0.0.0.0`, which `python main.py` does.
+**API base URL:** `lib/core/config/app_config.dart` — Android default is a **hardcoded machine-specific LAN IP** (`_androidBaseUrl`, currently `http://192.168.1.24:8000` — update it to your machine's IP, or pass `--dart-define=API_BASE_URL=...`). Other platforms use `localhost:8000`. Backend must listen on `0.0.0.0`, which `python main.py` does.
 
 **Routing:** Single `GoRouter` in `lib/core/router/app_router.dart` with 3 role-based tracks: `/mahasiswa` (onboarding, profile, diagnostic, modules/:id, chat, quiz/:materialId), `/dosen` (`upload`, `students`, `students/:id`), `/admin` (dashboard only). Redirect logic bounces any logged-in user off routes outside their role prefix. Client-side RBAC only — backend must also enforce via `deps.py` guards. The redirect is driven by a `refreshListenable` (`_AuthRouterRefresh`) that **only notifies on `isLoggedIn` changes** — not on loading/error — so a failed login (wrong password) does not remount the route tree. Don't "simplify" it by having the provider `ref.watch(authProvider)` directly, or you'll break that.
 
